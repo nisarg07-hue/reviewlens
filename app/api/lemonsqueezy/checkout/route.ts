@@ -1,21 +1,29 @@
 import { NextResponse } from "next/server";
 import { lemonSqueezySetup, createCheckout } from "@lemonsqueezy/lemonsqueezy.js";
 
-// Initialize the Lemon Squeezy SDK
-lemonSqueezySetup({
-  apiKey: process.env.LEMONSQUEEZY_API_KEY!,
-  onError: (error) => console.error("Lemon Squeezy Error:", error),
-});
-
 export async function POST(req: Request) {
   try {
+    console.log("[Lemon Squeezy Checkout] Starting request");
+    console.log("API Key exists:", !!process.env.LEMONSQUEEZY_API_KEY);
+    console.log("Store ID:", process.env.NEXT_PUBLIC_LEMONSQUEEZY_STORE_ID);
+
+    // Initialize the Lemon Squeezy SDK inside the handler
+    lemonSqueezySetup({
+      apiKey: process.env.LEMONSQUEEZY_API_KEY!,
+      onError: (error) => console.error("Lemon Squeezy Error:", error),
+    });
     const { variantId } = await req.json();
 
     if (!variantId) {
       return NextResponse.json({ error: "variantId is required" }, { status: 400 });
     }
 
+    console.log("Requested variantId:", variantId);
+
     const storeId = process.env.NEXT_PUBLIC_LEMONSQUEEZY_STORE_ID!;
+    
+    // Ensure storeId and variantId are strings (or numbers as required by SDK)
+    console.log(`Creating checkout for store: ${storeId}, variant: ${variantId}`);
     
     // Determine the plan string from variantId to send back on success redirect
     const planString = variantId === 1607145 || variantId === "1607145" ? "pro" : "agency";
