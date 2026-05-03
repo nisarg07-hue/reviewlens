@@ -3,9 +3,8 @@ import { lemonSqueezySetup, createCheckout } from "@lemonsqueezy/lemonsqueezy.js
 
 export async function POST(req: Request) {
   try {
-    console.log("[Lemon Squeezy Checkout] Starting request");
-    console.log("API Key exists:", !!process.env.LEMONSQUEEZY_API_KEY);
-    console.log("Store ID:", process.env.NEXT_PUBLIC_LEMONSQUEEZY_STORE_ID);
+    console.log('Store ID:', process.env.NEXT_PUBLIC_LEMONSQUEEZY_STORE_ID);
+    console.log('API Key exists:', !!process.env.LEMONSQUEEZY_API_KEY);
 
     // Initialize the Lemon Squeezy SDK inside the handler
     lemonSqueezySetup({
