@@ -24,6 +24,8 @@ export async function POST(req: Request) {
 
     console.log("[Lemon Squeezy Webhook] Signature verified.");
     const payload = JSON.parse(rawBody);
+    console.log("[Lemon Squeezy Webhook] Full Payload:", JSON.stringify(payload, null, 2));
+    
     const eventName = payload.meta.event_name;
     console.log("[Lemon Squeezy Webhook] Event name:", eventName);
     const customData = payload.meta.custom_data || {};
