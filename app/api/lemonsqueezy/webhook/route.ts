@@ -8,18 +8,24 @@ export async function POST(req: Request) {
     const signature = req.headers.get("x-signature") || "";
     const secret = process.env.LEMONSQUEEZY_WEBHOOK_SECRET || "";
 
+    console.log("[Lemon Squeezy Webhook] Received request");
+    console.log("[Lemon Squeezy Webhook] Signature exists:", !!signature);
+    console.log("[Lemon Squeezy Webhook] Secret exists:", !!secret);
+
     // Verify signature
     const hmac = crypto.createHmac("sha256", secret);
     const digest = Buffer.from(hmac.update(rawBody).digest("hex"), "utf8");
     const signatureBuffer = Buffer.from(signature, "utf8");
 
     if (digest.length !== signatureBuffer.length || !crypto.timingSafeEqual(digest, signatureBuffer)) {
-      console.error("Invalid Lemon Squeezy webhook signature.");
+      console.error("[Lemon Squeezy Webhook] Invalid signature.");
       return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
     }
 
+    console.log("[Lemon Squeezy Webhook] Signature verified.");
     const payload = JSON.parse(rawBody);
     const eventName = payload.meta.event_name;
+    console.log("[Lemon Squeezy Webhook] Event name:", eventName);
     const customData = payload.meta.custom_data || {};
 
     if (eventName === "order_created" || eventName === "subscription_created") {
