@@ -33,12 +33,13 @@ export default function HomePage() {
       });
     });
 
-    const proToken = localStorage.getItem("reviewlens_pro_token") === "active";
-    setIsPro(proToken);
+    const storedPlan = localStorage.getItem("reviewlens_plan_token");
+    setIsPro(storedPlan === "pro" || storedPlan === "agency");
 
     const search = new URLSearchParams(window.location.search);
     if (search.get("success") === "true") {
-      localStorage.setItem("reviewlens_pro_token", "active");
+      const plan = search.get("plan") || "pro";
+      localStorage.setItem("reviewlens_plan_token", plan);
       setIsPro(true);
       router.replace("/");
     }
@@ -46,9 +47,13 @@ export default function HomePage() {
     setUsageCount(parseInt(localStorage.getItem("reviewlens_usage_count") || "0", 10));
   }, [router]);
 
-  async function handleCheckout() {
+  async function handleCheckout(variantId: string = "1607145") {
     try {
-      const res = await fetch("/api/stripe/checkout", { method: "POST" });
+      const res = await fetch("/api/lemonsqueezy/checkout", { 
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ variantId })
+      });
       const data = await res.json();
       if (data.url) {
         window.location.href = data.url;
@@ -137,7 +142,7 @@ export default function HomePage() {
           )}
           {!isPro && (
             <button
-              onClick={handleCheckout}
+              onClick={() => handleCheckout("1607145")}
               className="px-3 py-1.5 rounded border border-white/10 text-white/60 hover:border-white/20 hover:text-white/80 transition-all"
             >
               Get Pro
@@ -219,12 +224,20 @@ export default function HomePage() {
               <div className="mt-4 p-4 rounded-xl border border-[#F0A500]/20 bg-[#F0A500]/5 text-center flex flex-col items-center">
                 <p className="text-[#F0A500] text-sm font-medium mb-1">Free limit reached</p>
                 <p className="text-white/60 text-xs mb-4">You've used your 3 free analyses. Upgrade to Pro for unlimited reports, PDF exports, and more.</p>
-                <button
-                  onClick={handleCheckout}
-                  className="px-5 py-2.5 rounded-lg bg-[#00C896] text-[#0B0B0F] text-sm font-medium hover:bg-[#00D4A3] transition-colors"
-                >
-                  Upgrade to Pro — $29/mo
-                </button>
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => handleCheckout("1607145")}
+                    className="px-5 py-2.5 rounded-lg bg-[#00C896] text-[#0B0B0F] text-sm font-medium hover:bg-[#00D4A3] transition-colors"
+                  >
+                    Upgrade to Pro — $29/mo
+                  </button>
+                  <button
+                    onClick={() => handleCheckout("1607165")}
+                    className="px-5 py-2.5 rounded-lg bg-[#F0A500] text-[#0B0B0F] text-sm font-medium hover:bg-[#FFB414] transition-colors"
+                  >
+                    Get Agency — $79/mo
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -257,6 +270,35 @@ export default function HomePage() {
         </div>
         <p className="text-white/10 text-xs mt-2">* coming soon</p>
       </div>
+
+      {/* Pricing Section */}
+      {!isPro && (
+        <div className="w-full border-t border-white/5 bg-[#0B0B0F]/50 py-16 flex flex-col items-center">
+          <h2 className="text-white text-2xl font-medium mb-8">Choose your plan</h2>
+          <div className="flex flex-col md:flex-row gap-6">
+            <div className="p-6 rounded-2xl border border-white/10 bg-white/[0.02] flex flex-col items-center w-64">
+              <h3 className="text-white/80 text-lg mb-2">Pro Plan</h3>
+              <p className="text-white text-3xl font-medium mb-6">$29<span className="text-sm text-white/40">/mo</span></p>
+              <button
+                onClick={() => handleCheckout("1607145")}
+                className="w-full py-2.5 rounded-lg bg-[#00C896]/10 text-[#00C896] border border-[#00C896]/30 hover:bg-[#00C896]/20 transition-colors text-sm font-medium"
+              >
+                Get Pro
+              </button>
+            </div>
+            <div className="p-6 rounded-2xl border border-[#F0A500]/30 bg-[#F0A500]/5 flex flex-col items-center w-64">
+              <h3 className="text-white/80 text-lg mb-2">Agency Plan</h3>
+              <p className="text-white text-3xl font-medium mb-6">$79<span className="text-sm text-white/40">/mo</span></p>
+              <button
+                onClick={() => handleCheckout("1607165")}
+                className="w-full py-2.5 rounded-lg bg-[#F0A500] text-[#0B0B0F] hover:bg-[#FFB414] transition-colors text-sm font-medium"
+              >
+                Get Agency
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <footer className="px-8 py-4 border-t border-white/5 flex items-center justify-between">
