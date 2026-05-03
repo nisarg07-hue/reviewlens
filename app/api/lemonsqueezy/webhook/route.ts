@@ -32,18 +32,23 @@ export async function POST(req: Request) {
 
     if (eventName === "order_created" || eventName === "subscription_created") {
       const email = payload.data.attributes.user_email;
-      const variantId = payload.data.attributes.first_subscription_item?.variant_id 
-                        || payload.data.attributes.first_order_item?.variant_id
-                        || payload.data.attributes.variant_id; // Try multiple paths depending on payload structure
+      const variantId = payload.data.attributes.variant_id 
+                        || payload.data.attributes.first_subscription_item?.variant_id 
+                        || payload.data.attributes.first_order_item?.variant_id;
       
-      const plan = (variantId === 1607145 || variantId === "1607145") ? "pro" : "agency";
+      console.log("[Lemon Squeezy Webhook] Extracted variantId:", variantId);
+      
+      const plan = (variantId?.toString() === "1607145") ? "pro" : "agency";
+      console.log("[Lemon Squeezy Webhook] Mapped plan:", plan);
       
       if (email) {
         const supabase = getSupabaseServer();
         
         // 1. Find the user in auth.users by email using the Admin API
         const { data: { users: authUsers }, error: authError } = await supabase.auth.admin.listUsers();
-        const authUser = authUsers?.find(u => u.email === email);
+        console.log(`[Lemon Squeezy Webhook] Total auth users found in list: ${authUsers?.length || 0}`);
+        
+        const authUser = authUsers?.find(u => u.email?.toLowerCase() === email.toLowerCase());
 
         if (authUser) {
           const userId = authUser.id;
