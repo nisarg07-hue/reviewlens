@@ -40,36 +40,33 @@ export async function POST(req: Request) {
       
       if (email) {
         const supabase = getSupabaseServer();
-        // Since we want to match by email and insert if it doesn't exist, we can check if it exists first.
-        // Wait, supabase `upsert` requires a unique constraint, often on id. If id isn't known, we might need to query then update/insert.
         
-        const { data: existingUser } = await supabase
-          .from("users")
-          .select("*")
-          .eq("email", email)
-          .single();
+        // 1. Find the user in auth.users by email using the Admin API
+        const { data: { users: authUsers }, error: authError } = await supabase.auth.admin.listUsers();
+        const authUser = authUsers?.find(u => u.email === email);
 
-        if (existingUser) {
+        if (authUser) {
+          const userId = authUser.id;
+          console.log(`[Lemon Squeezy Webhook] Found auth user: ${userId} for email: ${email}`);
+
+          // 2. Upsert into public.users using the correct ID
           const { error } = await supabase
             .from("users")
-            .update({ plan })
-            .eq("email", email);
-            
+            .upsert({ 
+              id: userId, 
+              email, 
+              plan 
+            }, { onConflict: 'id' });
+
           if (error) {
-            console.error("[Lemon Squeezy Webhook] Error updating user plan:", error);
+            console.error("[Lemon Squeezy Webhook] Error upserting user plan:", error.message);
           } else {
-            console.log(`[Lemon Squeezy Webhook] Updated user ${email} to ${plan} plan.`);
+            console.log(`[Lemon Squeezy Webhook] Successfully updated user ${email} to ${plan} plan.`);
           }
         } else {
-          const { error } = await supabase
-            .from("users")
-            .insert({ email, plan });
-            
-          if (error) {
-            console.error("[Lemon Squeezy Webhook] Error inserting new user:", error);
-          } else {
-            console.log(`[Lemon Squeezy Webhook] Inserted new user ${email} with ${plan} plan.`);
-          }
+          // If the user doesn't exist in Auth yet, we can't insert into public.users due to FK constraint.
+          // For now, we log this. In a real app, you might store this in a 'pending_upgrades' table.
+          console.warn(`[Lemon Squeezy Webhook] Purchase received for ${email}, but no Auth user exists yet. Skipping DB insert.`);
         }
       }
     }
