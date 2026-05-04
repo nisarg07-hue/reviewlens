@@ -6,14 +6,21 @@ import { scrapeTrustpilot } from "./trustpilot";
 // ─── Detect which platform a URL belongs to ───────────────────────────────────
 
 export function detectPlatform(url: string): DetectedPlatform | null {
+  console.log(`[Scraper] Detecting platform for URL: ${url}`);
+  
   try {
     const u = new URL(url);
     const host = u.hostname.replace("www.", "");
+    console.log(`[Scraper] Hostname: ${host}`);
 
-    // Amazon
+    // Amazon (supports all country TLDs)
     if (host.includes("amazon.")) {
       const asinMatch = url.match(/\/dp\/([A-Z0-9]{10})/);
-      if (!asinMatch) return null;
+      if (!asinMatch) {
+        console.log("[Scraper] Amazon URL detected but no ASIN found (need /dp/XXXXXXXXXX)");
+        return null;
+      }
+      console.log(`[Scraper] ✅ Amazon detected, ASIN: ${asinMatch[1]}`);
       return {
         platform: "amazon",
         identifier: asinMatch[1],
@@ -23,8 +30,12 @@ export function detectPlatform(url: string): DetectedPlatform | null {
 
     // G2
     if (host === "g2.com" || host.endsWith(".g2.com")) {
-      const slugMatch = u.pathname.match(/\/products\/([^/]+)\//);
-      if (!slugMatch) return null;
+      const slugMatch = u.pathname.match(/\/products\/([^/]+)\/?/);
+      if (!slugMatch) {
+        console.log("[Scraper] G2 URL detected but no product slug found (need /products/SLUG/)");
+        return null;
+      }
+      console.log(`[Scraper] ✅ G2 detected, slug: ${slugMatch[1]}`);
       return {
         platform: "g2",
         identifier: slugMatch[1],
@@ -35,16 +46,23 @@ export function detectPlatform(url: string): DetectedPlatform | null {
     // Trustpilot
     if (host === "trustpilot.com" || host.endsWith(".trustpilot.com")) {
       const domainMatch = u.pathname.match(/\/review\/(.+)/);
-      if (!domainMatch) return null;
+      if (!domainMatch) {
+        console.log("[Scraper] Trustpilot URL detected but no business domain found (need /review/DOMAIN)");
+        return null;
+      }
+      const identifier = domainMatch[1].replace(/\/$/, "");
+      console.log(`[Scraper] ✅ Trustpilot detected, domain: ${identifier}`);
       return {
         platform: "trustpilot",
-        identifier: domainMatch[1].replace(/\/$/, ""),
+        identifier,
         displayName: "Trustpilot",
       };
     }
 
+    console.log(`[Scraper] ❌ Unrecognised platform: ${host}`);
     return null;
-  } catch {
+  } catch (err) {
+    console.error("[Scraper] URL parsing error:", err);
     return null;
   }
 }
@@ -54,15 +72,23 @@ export function detectPlatform(url: string): DetectedPlatform | null {
 export async function scrapeReviews(
   detected: DetectedPlatform
 ): Promise<ScrapeResult> {
+  const startTime = Date.now();
+  console.log(`[Scraper] ▶ Dispatching ${detected.platform} scraper for: ${detected.identifier}`);
+
+  let result: ScrapeResult;
+
   switch (detected.platform) {
     case "amazon":
-      return scrapeAmazon(detected.identifier);
+      result = await scrapeAmazon(detected.identifier);
+      break;
     case "g2":
-      return scrapeG2(detected.identifier);
+      result = await scrapeG2(detected.identifier);
+      break;
     case "trustpilot":
-      return scrapeTrustpilot(detected.identifier);
+      result = await scrapeTrustpilot(detected.identifier);
+      break;
     default:
-      return {
+      result = {
         platform: detected.platform as Platform,
         productName: "Unknown",
         productUrl: "",
@@ -72,4 +98,11 @@ export async function scrapeReviews(
         error: `Platform ${detected.platform} not yet supported.`,
       };
   }
+
+  const elapsed = Date.now() - startTime;
+  console.log(`[Scraper] ◀ ${detected.platform} completed in ${elapsed}ms`);
+  console.log(`[Scraper] Reviews found: ${result.reviews.length}`);
+  console.log(`[Scraper] Error: ${result.error || "none"}`);
+
+  return result;
 }

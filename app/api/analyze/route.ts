@@ -57,8 +57,10 @@ export async function POST(req: NextRequest): Promise<NextResponse<AnalyzeRespon
   }
 
   // Detect platform
+  console.log(`[Analyze] Received URL: ${body.url}`);
   const detected = detectPlatform(body.url);
   if (!detected) {
+    console.log(`[Analyze] ❌ Platform not detected for URL: ${body.url}`);
     return NextResponse.json(
       {
         success: false,
@@ -68,10 +70,17 @@ export async function POST(req: NextRequest): Promise<NextResponse<AnalyzeRespon
       { status: 422 }
     );
   }
+  console.log(`[Analyze] ✅ Detected platform: ${detected.platform}, identifier: ${detected.identifier}`);
 
   // Scrape reviews
+  console.log(`[Analyze] Starting scrape...`);
+  const scrapeStart = Date.now();
   const scrape = await scrapeReviews(detected);
+  console.log(`[Analyze] Scrape completed in ${Date.now() - scrapeStart}ms`);
+  console.log(`[Analyze] Reviews found: ${scrape.reviews.length}, error: ${scrape.error || 'none'}`);
+
   if (scrape.error && scrape.reviews.length === 0) {
+    console.log(`[Analyze] ❌ Scrape failed with error: ${scrape.error}`);
     return NextResponse.json(
       { success: false, error: scrape.error },
       { status: 502 }
@@ -79,6 +88,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<AnalyzeRespon
   }
 
   if (scrape.reviews.length < 3) {
+    console.log(`[Analyze] ❌ Only ${scrape.reviews.length} reviews — not enough (need 3+)`);
     return NextResponse.json(
       {
         success: false,

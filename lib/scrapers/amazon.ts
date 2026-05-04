@@ -14,6 +14,8 @@ interface RapidApiReview {
 }
 
 interface RapidApiResponse {
+  status: string;
+  request_id: string;
   data: {
     product_title: string;
     product_star_rating: string;
@@ -32,123 +34,176 @@ export async function scrapeAmazon(asin: string): Promise<ScrapeResult> {
     reviews: [],
   };
 
-  // ── Try RapidAPI first (500 free calls/month) ──────────────────────────────
+  console.log(`[Amazon] Starting scrape for ASIN: ${asin}`);
+  console.log(`[Amazon] RAPIDAPI_KEY exists: ${!!RAPIDAPI_KEY}`);
+  console.log(`[Amazon] SCRAPINGBEE_KEY exists: ${!!process.env.SCRAPINGBEE_KEY}`);
+
+  // ── Method 1: RapidAPI Real-Time Amazon Data (most reliable) ──────────────
   if (RAPIDAPI_KEY) {
     try {
-      const res = await fetch(
-        `https://${RAPIDAPI_HOST}/product-reviews?asin=${asin}&country=US&sort_by=TOP_REVIEWS&star_rating=ALL&verified_purchases_only=false&filter_by_keyword=&page=1`,
-        {
-          headers: {
-            "x-rapidapi-key": RAPIDAPI_KEY,
-            "x-rapidapi-host": RAPIDAPI_HOST,
-          },
-          next: { revalidate: 3600 },
-        }
-      );
+      console.log("[Amazon] Method 1: Trying RapidAPI...");
+      const apiUrl = `https://${RAPIDAPI_HOST}/product-reviews?asin=${asin}&country=US&sort_by=TOP_REVIEWS&star_rating=ALL&verified_purchases_only=false&page=1`;
+      
+      const res = await fetch(apiUrl, {
+        headers: {
+          "x-rapidapi-key": RAPIDAPI_KEY,
+          "x-rapidapi-host": RAPIDAPI_HOST,
+        },
+        signal: AbortSignal.timeout(15000),
+      });
+
+      console.log(`[Amazon] RapidAPI status: ${res.status}`);
 
       if (res.ok) {
         const json: RapidApiResponse = await res.json();
-        const d = json.data;
+        console.log(`[Amazon] RapidAPI response status: ${json.status}`);
+        console.log(`[Amazon] RapidAPI reviews count: ${json.data?.reviews?.length ?? 0}`);
 
-        const reviews: RawReview[] = (d.reviews ?? []).map((r) => ({
-          id: r.review_id,
-          rating: parseInt(r.review_star_rating, 10),
-          title: r.review_title,
-          body: r.review_comment,
-          date: r.review_date,
-          author: r.review_author,
-          verified: r.is_verified_purchase,
-        }));
+        if (json.data?.reviews?.length > 0) {
+          const reviews: RawReview[] = json.data.reviews.map((r) => ({
+            id: r.review_id,
+            rating: parseInt(r.review_star_rating, 10),
+            title: r.review_title,
+            body: r.review_comment,
+            date: r.review_date,
+            author: r.review_author,
+            verified: r.is_verified_purchase,
+          }));
 
-        return {
-          platform: "amazon",
-          productName: d.product_title,
-          productUrl: `https://www.amazon.com/dp/${asin}`,
-          totalReviews: d.product_num_ratings,
-          averageRating: parseFloat(d.product_star_rating),
-          reviews,
-        };
+          console.log(`[Amazon] ✅ RapidAPI returned ${reviews.length} reviews`);
+          return {
+            platform: "amazon",
+            productName: json.data.product_title || `Amazon product (${asin})`,
+            productUrl: `https://www.amazon.com/dp/${asin}`,
+            totalReviews: json.data.product_num_ratings || reviews.length,
+            averageRating: parseFloat(json.data.product_star_rating) || 0,
+            reviews,
+          };
+        }
+      } else {
+        const errText = await res.text();
+        console.error(`[Amazon] RapidAPI error ${res.status}:`, errText.substring(0, 300));
       }
-    } catch (err) {
-      console.error("[Amazon RapidAPI]", err);
+    } catch (err: any) {
+      console.error("[Amazon] RapidAPI error:", err.message);
     }
   }
 
-  // ── Fallback: scrape Amazon reviews page with Cheerio ─────────────────────
-  // NOTE: Amazon actively blocks scrapers. Use ScrapingBee as proxy in prod:
-  // https://app.scrapingbee.com — 1000 free credits
-  try {
-    const targetUrl = `https://www.amazon.com/product-reviews/${asin}?sortBy=recent&pageNumber=1`;
-    const fetchUrl = process.env.SCRAPINGBEE_KEY
-      ? `https://app.scrapingbee.com/api/v1/?api_key=${process.env.SCRAPINGBEE_KEY}&url=${encodeURIComponent(targetUrl)}&render_js=false`
-      : targetUrl;
+  // ── Method 2: ScrapingBee with premium proxy + JS rendering ───────────────
+  if (process.env.SCRAPINGBEE_KEY) {
+    try {
+      console.log("[Amazon] Method 2: Trying ScrapingBee premium proxy...");
+      const targetUrl = `https://www.amazon.com/product-reviews/${asin}?sortBy=recent&pageNumber=1`;
+      const fetchUrl = `https://app.scrapingbee.com/api/v1/?api_key=${process.env.SCRAPINGBEE_KEY}&url=${encodeURIComponent(targetUrl)}&render_js=true&premium_proxy=true&country_code=us&wait=3000`;
 
-    const res = await fetch(fetchUrl, {
-      headers: !process.env.SCRAPINGBEE_KEY
-        ? {
-            "User-Agent":
-              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0 Safari/537.36",
+      const res = await fetch(fetchUrl, { signal: AbortSignal.timeout(30000) });
+      console.log(`[Amazon] ScrapingBee status: ${res.status}`);
+
+      if (res.ok) {
+        const html = await res.text();
+        console.log(`[Amazon] HTML length: ${html.length}`);
+
+        // Check for CAPTCHA
+        if (html.toLowerCase().includes("captcha") || html.toLowerCase().includes("robot check")) {
+          console.error("[Amazon] ❌ ScrapingBee got CAPTCHA'd");
+        } else {
+          const result = parseAmazonHTML(html, asin);
+          if (result.reviews.length > 0) {
+            console.log(`[Amazon] ✅ ScrapingBee found ${result.reviews.length} reviews`);
+            return result;
           }
-        : {},
-      next: { revalidate: 3600 },
-    });
-
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-    const { load } = await import("cheerio");
-    const html = await res.text();
-    const $ = load(html);
-
-    const reviews: RawReview[] = [];
-    let idx = 0;
-
-    $('[data-hook="review"]').each((_, el) => {
-      const ratingText = $(el)
-        .find('[data-hook="review-star-rating"] .a-icon-alt')
-        .text();
-      const rating = parseFloat(ratingText.split(" ")[0]) || 3;
-      const title = $(el).find('[data-hook="review-title"]').text().trim().replace(/^\d\.\d out of 5 stars\n/, "");
-      const body = $(el).find('[data-hook="review-body"]').text().trim();
-      const date = $(el).find('[data-hook="review-date"]').text().trim();
-      const author = $(el).find(".a-profile-name").text().trim();
-      const verified = $(el).find('[data-hook="avp-badge"]').length > 0;
-
-      if (body) {
-        reviews.push({
-          id: `amz-${idx++}`,
-          rating,
-          title,
-          body,
-          date,
-          author,
-          verified,
-        });
+          console.log("[Amazon] ScrapingBee HTML returned but no reviews parsed");
+        }
+      } else {
+        const errText = await res.text();
+        console.error("[Amazon] ScrapingBee error:", res.status, errText.substring(0, 300));
       }
+    } catch (err: any) {
+      console.error("[Amazon] ScrapingBee error:", err.message);
+    }
+  }
+
+  // ── Method 3: Direct fetch (will likely fail, but worth trying) ───────────
+  try {
+    console.log("[Amazon] Method 3: Trying direct fetch (last resort)...");
+    const targetUrl = `https://www.amazon.com/product-reviews/${asin}?sortBy=recent&pageNumber=1`;
+    const res = await fetch(targetUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate, br",
+      },
+      signal: AbortSignal.timeout(10000),
     });
 
-    // Product name from title
-    const productName =
-      $('[data-hook="product-link"]').text().trim() ||
-      $(".product-title").text().trim() ||
-      `Amazon product (${asin})`;
+    console.log(`[Amazon] Direct fetch status: ${res.status}`);
 
-    const avgRatingText = $('[data-hook="rating-out-of-text"]').text();
-    const averageRating = parseFloat(avgRatingText.split(" ")[0]) || 0;
-
-    return {
-      platform: "amazon",
-      productName,
-      productUrl: `https://www.amazon.com/dp/${asin}`,
-      totalReviews: reviews.length,
-      averageRating,
-      reviews,
-    };
-  } catch (err) {
-    console.error("[Amazon scraper]", err);
-    return {
-      ...defaultResult,
-      error:
-        "Amazon blocked this request. Add RAPIDAPI_KEY or SCRAPINGBEE_KEY to .env.",
-    };
+    if (res.ok) {
+      const html = await res.text();
+      console.log(`[Amazon] HTML length: ${html.length}`);
+      
+      if (html.toLowerCase().includes("captcha")) {
+        console.log("[Amazon] Direct fetch got CAPTCHA");
+      } else {
+        const result = parseAmazonHTML(html, asin);
+        if (result.reviews.length > 0) {
+          console.log(`[Amazon] ✅ Direct fetch found ${result.reviews.length} reviews`);
+          return result;
+        }
+      }
+    }
+  } catch (err: any) {
+    console.error("[Amazon] Direct fetch error:", err.message);
   }
+
+  console.error("[Amazon] ❌ All methods failed");
+  return {
+    ...defaultResult,
+    error: "Could not fetch Amazon reviews. Please add a RAPIDAPI_KEY (free tier: 500 calls/month) in your environment variables. Get one at: https://rapidapi.com/letscrape-6bRBa3QguO5/api/real-time-amazon-data",
+  };
+}
+
+// ─── Amazon HTML parser ───────────────────────────────────────────────────────
+
+function parseAmazonHTML(html: string, asin: string): ScrapeResult {
+  const cheerio = require("cheerio");
+  const $ = cheerio.load(html);
+
+  const reviews: RawReview[] = [];
+  let idx = 0;
+
+  const reviewElements = $('[data-hook="review"]');
+  console.log(`[Amazon] HTML parser: found ${reviewElements.length} [data-hook=review] elements`);
+
+  reviewElements.each((_: number, el: any) => {
+    const ratingText = $(el).find('[data-hook="review-star-rating"] .a-icon-alt').text();
+    const rating = parseFloat(ratingText.split(" ")[0]) || 3;
+    const title = $(el).find('[data-hook="review-title"]').text().trim().replace(/^\d\.\d out of 5 stars\n/, "");
+    const body = $(el).find('[data-hook="review-body"]').text().trim();
+    const date = $(el).find('[data-hook="review-date"]').text().trim();
+    const author = $(el).find(".a-profile-name").text().trim();
+    const verified = $(el).find('[data-hook="avp-badge"]').length > 0;
+
+    if (body) {
+      reviews.push({ id: `amz-${idx++}`, rating, title, body, date, author, verified });
+    }
+  });
+
+  const productName =
+    $('[data-hook="product-link"]').text().trim() ||
+    $(".product-title").text().trim() ||
+    `Amazon product (${asin})`;
+
+  const avgRatingText = $('[data-hook="rating-out-of-text"]').text();
+  const averageRating = parseFloat(avgRatingText.split(" ")[0]) || 0;
+
+  return {
+    platform: "amazon",
+    productName,
+    productUrl: `https://www.amazon.com/dp/${asin}`,
+    totalReviews: reviews.length,
+    averageRating,
+    reviews,
+  };
 }

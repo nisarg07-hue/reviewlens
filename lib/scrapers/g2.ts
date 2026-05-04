@@ -12,114 +12,166 @@ export async function scrapeG2(productSlug: string): Promise<ScrapeResult> {
     reviews: [],
   };
 
-  try {
-    // G2 is server-rendered, so Cheerio works without a JS engine
-    // Use ScrapingBee proxy in prod to avoid IP blocks
-    const fetchUrl = process.env.SCRAPINGBEE_KEY
-      ? `https://app.scrapingbee.com/api/v1/?api_key=${process.env.SCRAPINGBEE_KEY}&url=${encodeURIComponent(url)}&render_js=false`
-      : url;
+  console.log(`[G2] Starting scrape for: ${productSlug}`);
 
-    const res = await fetch(fetchUrl, {
-      headers: !process.env.SCRAPINGBEE_KEY
-        ? {
-            "User-Agent":
-              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0 Safari/537.36",
-            Accept: "text/html",
-          }
-        : {},
-      next: { revalidate: 3600 },
+  // ── Method 1: ScrapingBee with premium proxy ──────────────────────────────
+  if (process.env.SCRAPINGBEE_KEY) {
+    try {
+      console.log("[G2] Trying ScrapingBee premium proxy...");
+      const fetchUrl = `https://app.scrapingbee.com/api/v1/?api_key=${process.env.SCRAPINGBEE_KEY}&url=${encodeURIComponent(url)}&render_js=true&premium_proxy=true&country_code=us&wait=3000`;
+
+      const res = await fetch(fetchUrl, { signal: AbortSignal.timeout(30000) });
+      console.log(`[G2] ScrapingBee status: ${res.status}`);
+
+      if (res.ok) {
+        const html = await res.text();
+        console.log(`[G2] HTML length: ${html.length}`);
+        
+        const result = parseG2HTML(html, productSlug, url);
+        if (result.reviews.length > 0) {
+          console.log(`[G2] ✅ ScrapingBee found ${result.reviews.length} reviews`);
+          return result;
+        }
+        console.log("[G2] ScrapingBee returned HTML but no reviews parsed");
+      } else {
+        const errText = await res.text();
+        console.error("[G2] ScrapingBee error:", res.status, errText.substring(0, 200));
+      }
+    } catch (err: any) {
+      console.error("[G2] ScrapingBee error:", err.message);
+    }
+  }
+
+  // ── Method 2: Direct fetch ────────────────────────────────────────────────
+  try {
+    console.log("[G2] Trying direct fetch...");
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+      signal: AbortSignal.timeout(15000),
     });
 
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    console.log(`[G2] Direct fetch status: ${res.status}`);
 
-    const { load } = await import("cheerio");
-    const html = await res.text();
-    const $ = load(html);
+    if (res.ok) {
+      const html = await res.text();
+      console.log(`[G2] HTML length: ${html.length}`);
+      
+      const result = parseG2HTML(html, productSlug, url);
+      if (result.reviews.length > 0) {
+        console.log(`[G2] ✅ Direct fetch found ${result.reviews.length} reviews`);
+        return result;
+      }
+      
+      // Check if we got blocked
+      if (html.includes("captcha") || html.includes("Verify") || html.length < 5000) {
+        console.log("[G2] Likely blocked by CAPTCHA/Cloudflare");
+      }
+    }
+  } catch (err: any) {
+    console.error("[G2] Direct fetch error:", err.message);
+  }
 
-    const reviews: RawReview[] = [];
-    let idx = 0;
+  console.error("[G2] ❌ All methods failed");
+  return {
+    ...defaultResult,
+    error: "Could not fetch G2 reviews. G2 heavily blocks automated requests. Try Trustpilot or Amazon URLs instead.",
+  };
+}
 
-    // G2 review card selector (as of 2025)
-    $('[itemprop="review"]').each((_, el) => {
-      const ratingEl = $(el).find('[itemprop="ratingValue"]');
-      const rating = parseFloat(ratingEl.attr("content") ?? "3");
+// ─── G2 HTML parser ───────────────────────────────────────────────────────────
 
-      const title = $(el).find("[itemprop='name']").first().text().trim();
+function parseG2HTML(html: string, productSlug: string, url: string): ScrapeResult {
+  const cheerio = require("cheerio");
+  const $ = cheerio.load(html);
 
-      // G2 splits reviews into "likes" and "dislikes" sections
-      const likesText = $(el)
-        .find(".review-body__likes .formatted-text")
-        .text()
-        .trim();
-      const dislikesText = $(el)
-        .find(".review-body__dislikes .formatted-text")
-        .text()
-        .trim();
-      const body = [
-        likesText ? `Likes: ${likesText}` : "",
-        dislikesText ? `Dislikes: ${dislikesText}` : "",
-      ]
-        .filter(Boolean)
-        .join(" | ");
+  const reviews: RawReview[] = [];
+  let idx = 0;
 
-      const date =
-        $(el).find("time").attr("datetime") ??
-        $(el).find("[itemprop='datePublished']").attr("content") ??
-        new Date().toISOString();
+  // Primary selector: itemprop="review"
+  $('[itemprop="review"]').each((_: number, el: any) => {
+    const ratingEl = $(el).find('[itemprop="ratingValue"]');
+    const rating = parseFloat(ratingEl.attr("content") ?? "3");
+    const title = $(el).find("[itemprop='name']").first().text().trim();
 
-      const author = $(el).find("[itemprop='author']").text().trim();
+    const likesText = $(el).find(".review-body__likes .formatted-text").text().trim();
+    const dislikesText = $(el).find(".review-body__dislikes .formatted-text").text().trim();
+    const body = [
+      likesText ? `Likes: ${likesText}` : "",
+      dislikesText ? `Dislikes: ${dislikesText}` : "",
+    ].filter(Boolean).join(" | ");
 
-      if (body || title) {
+    const date =
+      $(el).find("time").attr("datetime") ??
+      $(el).find("[itemprop='datePublished']").attr("content") ??
+      new Date().toISOString();
+    const author = $(el).find("[itemprop='author']").text().trim();
+
+    if (body || title) {
+      reviews.push({
+        id: `g2-${idx++}`,
+        rating,
+        title,
+        body,
+        date,
+        author,
+        verified: true,
+      });
+    }
+  });
+
+  // Fallback: try div.review-content selectors
+  if (reviews.length === 0) {
+    console.log("[G2] Primary selector found 0. Trying fallback selectors...");
+    $(".paper--box .review-content, .review-listing").each((_: number, el: any) => {
+      const body = $(el).text().trim();
+      if (body && body.length > 20) {
         reviews.push({
           id: `g2-${idx++}`,
-          rating,
-          title,
-          body,
-          date,
-          author,
-          verified: true, // G2 verifies all reviews
+          rating: 3,
+          title: "",
+          body: body.substring(0, 2000),
+          date: new Date().toISOString(),
+          author: "G2 User",
+          verified: true,
         });
       }
     });
-
-    // Product name and rating from JSON-LD or meta
-    let productName = productSlug;
-    let averageRating = 0;
-    let totalReviews = 0;
-
-    $('script[type="application/ld+json"]').each((_, el) => {
-      try {
-        const json = JSON.parse($(el).html() ?? "{}");
-        if (json["@type"] === "Product" || json["@type"] === "SoftwareApplication") {
-          productName = json.name ?? productSlug;
-          averageRating = parseFloat(json.aggregateRating?.ratingValue ?? "0");
-          totalReviews = parseInt(json.aggregateRating?.reviewCount ?? "0", 10);
-        }
-      } catch {}
-    });
-
-    // Fallback: parse from page heading
-    if (!averageRating) {
-      const ratingText = $(".product-rating .fw-semibold").first().text().trim();
-      averageRating = parseFloat(ratingText) || 0;
-    }
-    if (!productName || productName === productSlug) {
-      productName = $("h1.product-name").first().text().trim() || productSlug;
-    }
-
-    return {
-      platform: "g2",
-      productName,
-      productUrl: url,
-      totalReviews: totalReviews || reviews.length,
-      averageRating,
-      reviews,
-    };
-  } catch (err) {
-    console.error("[G2 scraper]", err);
-    return {
-      ...defaultResult,
-      error: "Failed to scrape G2. Add SCRAPINGBEE_KEY for reliable access.",
-    };
   }
+
+  // Metadata from JSON-LD
+  let productName = productSlug;
+  let averageRating = 0;
+  let totalReviews = 0;
+
+  $('script[type="application/ld+json"]').each((_: number, el: any) => {
+    try {
+      const json = JSON.parse($(el).html() ?? "{}");
+      if (json["@type"] === "Product" || json["@type"] === "SoftwareApplication") {
+        productName = json.name ?? productSlug;
+        averageRating = parseFloat(json.aggregateRating?.ratingValue ?? "0");
+        totalReviews = parseInt(json.aggregateRating?.reviewCount ?? "0", 10);
+      }
+    } catch {}
+  });
+
+  if (!averageRating) {
+    const ratingText = $(".product-rating .fw-semibold").first().text().trim();
+    averageRating = parseFloat(ratingText) || 0;
+  }
+  if (!productName || productName === productSlug) {
+    productName = $("h1.product-name, h1").first().text().trim() || productSlug;
+  }
+
+  return {
+    platform: "g2",
+    productName,
+    productUrl: url,
+    totalReviews: totalReviews || reviews.length,
+    averageRating,
+    reviews,
+  };
 }
