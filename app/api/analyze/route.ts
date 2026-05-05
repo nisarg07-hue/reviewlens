@@ -40,6 +40,8 @@ export async function POST(req: NextRequest): Promise<NextResponse<AnalyzeRespon
 
   try {
     console.log(`[analyze] received URL: ${body.url}`);
+    console.log(`[analyze] env check: GOOGLE_API_KEY=${!!process.env.GOOGLE_API_KEY}, RAPIDAPI_KEY=${!!process.env.RAPIDAPI_KEY}, SCRAPINGBEE_KEY=${!!process.env.SCRAPINGBEE_KEY}`);
+    
     const detected = detectPlatform(body.url);
     console.log(`[analyze] detected platform:`, detected);
 
@@ -49,17 +51,22 @@ export async function POST(req: NextRequest): Promise<NextResponse<AnalyzeRespon
 
     console.log(`[analyze] starting scrape for ${detected.platform}...`);
     const scrape = await scrapeReviews(detected);
-    console.log(`[analyze] scrape result:`, scrape.reviews.length, "reviews, error:", scrape.error ?? "none");
+    console.log(`[analyze] scrape result: ${scrape.reviews.length} reviews, error: ${scrape.error ?? "none"}`);
 
     if (scrape.error && scrape.reviews.length === 0) {
-      return NextResponse.json({ success: false, error: scrape.error }, { status: 502 });
+      const errMsg = scrape.error.includes("RAPIDAPI_KEY") || scrape.error.includes("SCRAPINGBEE_KEY")
+        ? "Scraping service not configured. Add RAPIDAPI_KEY and SCRAPINGBEE_KEY in Vercel env vars."
+        : scrape.error;
+      return NextResponse.json({ success: false, error: errMsg }, { status: 502 });
     }
 
     if (scrape.reviews.length < 2) {
       return NextResponse.json({ success: false, error: `Only ${scrape.reviews.length} reviews found — need at least 2.` }, { status: 422 });
     }
 
+    console.log(`[analyze] calling AI...`);
     const analysis = await analyzeReviews(scrape);
+    console.log(`[analyze] AI analysis complete`);
 
     const report: AnalysisReport = {
       id: randomUUID(),
@@ -84,7 +91,15 @@ export async function POST(req: NextRequest): Promise<NextResponse<AnalyzeRespon
     return NextResponse.json({ success: true, report });
   } catch (err: any) {
     console.error("[analyze] error:", err);
-    const msg = process.env.NODE_ENV === "development" ? err.message : "Analysis failed. Please try again.";
-    return NextResponse.json({ success: false, error: msg }, { status: 500 });
+    let errorMsg = "Analysis failed. Please try again.";
+    
+    // Provide helpful error messages
+    if (err.message?.includes("not configured") || err.message?.includes("API key")) {
+      errorMsg = "AI service not configured. Add GOOGLE_API_KEY in Vercel env vars.";
+    } else if (process.env.NODE_ENV === "development") {
+      errorMsg = err.message;
+    }
+    
+    return NextResponse.json({ success: false, error: errorMsg }, { status: 500 });
   }
 }

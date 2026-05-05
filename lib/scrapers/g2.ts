@@ -18,7 +18,7 @@ export async function scrapeG2(productSlug: string): Promise<ScrapeResult> {
   if (process.env.SCRAPINGBEE_KEY) {
     try {
       console.log("[G2] Method 1: Trying ScrapingBee...");
-      const fetchUrl = `https://app.scrapingbee.com/api/v1/?api_key=${process.env.SCRAPINGBEE_KEY}&url=${encodeURIComponent(url)}&render_js=false&block_ads=true`;
+      const fetchUrl = `https://app.scrapingbee.com/api/v1/?api_key=${process.env.SCRAPINGBEE_KEY}&url=${encodeURIComponent(url)}&render_js=true&premium_proxy=true&block_ads=true`;
 
       const res = await fetch(fetchUrl, { signal: AbortSignal.timeout(30000) });
       console.log(`[G2] ScrapingBee status: ${res.status}`);

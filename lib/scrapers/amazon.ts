@@ -94,7 +94,7 @@ export async function scrapeAmazon(asin: string): Promise<ScrapeResult> {
     try {
       console.log("[Amazon] Method 2: Trying ScrapingBee...");
       const targetUrl = `https://www.amazon.com/product-reviews/${asin}?sortBy=recent&pageNumber=1`;
-      const fetchUrl = `https://app.scrapingbee.com/api/v1/?api_key=${process.env.SCRAPINGBEE_KEY}&url=${encodeURIComponent(targetUrl)}&render_js=false&block_ads=true`;
+      const fetchUrl = `https://app.scrapingbee.com/api/v1/?api_key=${process.env.SCRAPINGBEE_KEY}&url=${encodeURIComponent(targetUrl)}&render_js=false&premium_proxy=true&block_ads=true`;
 
       const res = await fetch(fetchUrl, { signal: AbortSignal.timeout(30000) });
       console.log(`[Amazon] ScrapingBee status: ${res.status}`);
