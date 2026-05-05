@@ -1,8 +1,7 @@
 import type { AnalysisReport, ScrapeResult, ComparisonReport } from "@/types";
 
-const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
-
-// ─── System prompt ────────────────────────────────────────────────────────────
+const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY ?? "";
+const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
 
 const SYSTEM_PROMPT = `You are ReviewLens, an expert product intelligence analyst.
 You receive raw customer reviews and return a structured JSON analysis.
@@ -16,17 +15,10 @@ RULES:
 - Keep all strings under 200 chars
 - Return exactly the JSON schema below, no extra keys`;
 
-// ─── Build the analysis prompt ────────────────────────────────────────────────
-
 function buildPrompt(scrape: ScrapeResult): string {
-  // Truncate to ~80 reviews to stay within token limits
   const reviews = scrape.reviews.slice(0, 80);
-
   const reviewText = reviews
-    .map(
-      (r, i) =>
-        `[${i + 1}] ★${r.rating} | ${r.title ?? ""}\n${r.body.slice(0, 400)}`
-    )
+    .map((r, i) => `[${i + 1}] ★${r.rating} | ${r.title ?? ""}\n${r.body.slice(0, 400)}`)
     .join("\n\n");
 
   return `Analyze these ${reviews.length} customer reviews for "${scrape.productName}" on ${scrape.platform}.
@@ -39,82 +31,63 @@ Return this exact JSON structure:
 {
   "overallSummary": "2-3 sentence executive summary",
   "toneSignal": "very positive | mixed positive | neutral | mixed negative | very negative",
-  "sentiment": {
-    "positive": 65,
-    "neutral": 15,
-    "negative": 20,
-    "starDistribution": { "1": 5, "2": 3, "3": 8, "4": 20, "5": 64 }
-  },
-  "painPoints": [
-    {
-      "theme": "Short theme name",
-      "description": "What customers are complaining about",
-      "frequency": "common",
-      "severity": "moderate",
-      "exampleQuotes": ["quote 1 under 100 chars", "quote 2 under 100 chars"]
-    }
-  ],
-  "praises": [
-    {
-      "theme": "Short theme name",
-      "description": "What customers love",
-      "frequency": "very common",
-      "exampleQuotes": ["quote 1 under 100 chars", "quote 2 under 100 chars"]
-    }
-  ],
-  "improvements": [
-    {
-      "priority": "high",
-      "title": "Short improvement title",
-      "rationale": "Why this matters based on reviews",
-      "estimatedImpact": "Expected outcome if fixed"
-    }
-  ],
-  "competitorGap": "Any mention of competitors or switching from/to — or null"
+  "sentiment": { "positive": 65, "neutral": 15, "negative": 20, "starDistribution": { "1": 5, "2": 3, "3": 8, "4": 20, "5": 64 } },
+  "painPoints": [{ "theme": "Short theme name", "description": "What customers are complaining about", "frequency": "common", "severity": "moderate", "exampleQuotes": ["quote 1", "quote 2"] }],
+  "praises": [{ "theme": "Short theme name", "description": "What customers love", "frequency": "very common", "exampleQuotes": ["quote 1", "quote 2"] }],
+  "improvements": [{ "priority": "high", "title": "Short improvement title", "rationale": "Why this matters", "estimatedImpact": "Expected outcome" }],
+  "competitorGap": "Any competitor mentions or null"
 }
 
 Return at most 5 pain points, 5 praises, and 4 improvements. Return ONLY the JSON object.`;
 }
 
-// ─── Call Claude API ──────────────────────────────────────────────────────────
-
 export async function analyzeReviews(
   scrape: ScrapeResult
 ): Promise<Omit<AnalysisReport, "id" | "createdAt" | "productName" | "productUrl" | "platform" | "totalReviewsAnalyzed" | "averageRating">> {
-  const response = await fetch(ANTHROPIC_API, {
+  if (!GOOGLE_API_KEY) {
+    throw new Error("GOOGLE_API_KEY not configured");
+  }
+
+  const prompt = buildPrompt(scrape);
+  const url = `${GEMINI_ENDPOINT}?key=${GOOGLE_API_KEY}`;
+
+  const response = await fetch(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": process.env.ANTHROPIC_API_KEY ?? "",
-      "anthropic-version": "2023-06-01",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "claude-sonnet-4-5",
-      max_tokens: 2000,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: buildPrompt(scrape) }],
-    }),
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 2048,
+        stopSequences: []
+      }
+    })
   });
 
   if (!response.ok) {
     const err = await response.text();
-    throw new Error(`Claude API error ${response.status}: ${err}`);
+    throw new Error(`Gemini API error ${response.status}: ${err}`);
   }
 
   const data = await response.json();
-  const rawText: string = data.content[0]?.text ?? "{}";
+  
+  if (data.error) {
+    throw new Error(`Gemini error: ${data.error.message}`);
+  }
 
-  // Strip accidental markdown fences
+  if (process.env.NODE_ENV === "development") {
+    console.log("[Gemini] raw response:", JSON.stringify(data).slice(0, 500));
+  }
+
+  const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
   const cleaned = rawText.replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim();
 
   try {
     return JSON.parse(cleaned);
   } catch {
-    throw new Error(`Failed to parse Claude response: ${cleaned.slice(0, 200)}`);
+    throw new Error(`Failed to parse Gemini response: ${cleaned.slice(0, 200)}`);
   }
 }
-
-// ─── Compare two products ──────────────────────────────────────────────────────
 
 const COMPARE_SYSTEM_PROMPT = `You are ReviewLens, an expert product intelligence analyst.
 You receive raw customer reviews for TWO competing products and return a structured JSON comparison.
@@ -122,13 +95,16 @@ You receive raw customer reviews for TWO competing products and return a structu
 RULES:
 - Output ONLY valid JSON — no markdown, no preamble
 - Be brutally honest about strengths and weaknesses
-- Keep all strings under 200 chars
-- Return exactly the JSON schema below, no extra keys`;
+- Keep all strings under 200 chars`;
 
 export async function analyzeComparison(
   scrapeA: ScrapeResult,
   scrapeB: ScrapeResult
 ): Promise<Omit<ComparisonReport, "id" | "createdAt" | "productA" | "productB">> {
+  if (!GOOGLE_API_KEY) {
+    throw new Error("GOOGLE_API_KEY not configured");
+  }
+
   const reviewsA = scrapeA.reviews.slice(0, 50).map(r => `[A] ★${r.rating} | ${r.body.slice(0, 300)}`).join("\n\n");
   const reviewsB = scrapeB.reviews.slice(0, 50).map(r => `[B] ★${r.rating} | ${r.body.slice(0, 300)}`).join("\n\n");
 
@@ -149,39 +125,33 @@ Return this exact JSON structure:
   "productB_weaknesses": ["weakness 1", "weakness 2", "weakness 3"],
   "winner": "Product A",
   "winRationale": "Why Product A wins based on reviews",
-  "featureComparison": [
-    {
-      "feature": "Feature name (e.g. Usability, Support, Performance)",
-      "winner": "Product B",
-      "rationale": "Short rationale"
-    }
-  ]
+  "featureComparison": [{ "feature": "Feature name", "winner": "Product B", "rationale": "Short rationale" }]
 }
 
-Return ONLY the JSON object. "winner" must be "Product A", "Product B", or "Tie". "featureComparison.winner" must be "Product A", "Product B", or "Tie".`;
+Return ONLY the JSON object. "winner" must be "Product A", "Product B", or "Tie".`;
 
-  const response = await fetch(ANTHROPIC_API, {
+  const url = `${GEMINI_ENDPOINT}?key=${GOOGLE_API_KEY}`;
+  const response = await fetch(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": process.env.ANTHROPIC_API_KEY ?? "",
-      "anthropic-version": "2023-06-01",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "claude-sonnet-4-5",
-      max_tokens: 2000,
-      system: COMPARE_SYSTEM_PROMPT,
-      messages: [{ role: "user", content: prompt }],
-    }),
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
+    })
   });
 
   if (!response.ok) {
     const err = await response.text();
-    throw new Error(`Claude API error ${response.status}: ${err}`);
+    throw new Error(`Gemini API error ${response.status}: ${err}`);
   }
 
   const data = await response.json();
-  const rawText: string = data.content[0]?.text ?? "{}";
+  
+  if (data.error) {
+    throw new Error(`Gemini error: ${data.error.message}`);
+  }
+
+  const rawText: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
   const cleaned = rawText.replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim();
 
   try {
@@ -191,12 +161,9 @@ Return ONLY the JSON object. "winner" must be "Product A", "Product B", or "Tie"
       winner: parsed.winner,
       winRationale: parsed.winRationale,
       featureComparison: parsed.featureComparison,
-      // Temporarily stash these so the API route can attach them to the full objects
-      // Note: this is a slight hack but avoids needing to redefine the full interface shape here
       ...parsed
     };
   } catch {
-    throw new Error(`Failed to parse Claude response: ${cleaned.slice(0, 200)}`);
+    throw new Error(`Failed to parse Gemini response: ${cleaned.slice(0, 200)}`);
   }
 }
-

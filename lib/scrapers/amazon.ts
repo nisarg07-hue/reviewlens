@@ -38,11 +38,11 @@ export async function scrapeAmazon(asin: string): Promise<ScrapeResult> {
   console.log(`[Amazon] RAPIDAPI_KEY exists: ${!!RAPIDAPI_KEY}`);
   console.log(`[Amazon] SCRAPINGBEE_KEY exists: ${!!process.env.SCRAPINGBEE_KEY}`);
 
-  // ── Method 1: RapidAPI Real-Time Amazon Data (most reliable) ──────────────
+  // ── Method 1: RapidAPI Real-Time Amazon Data ──────────────────────────
   if (RAPIDAPI_KEY) {
     try {
       console.log("[Amazon] Method 1: Trying RapidAPI...");
-      const apiUrl = `https://${RAPIDAPI_HOST}/product-reviews?asin=${asin}&country=US&sort_by=TOP_REVIEWS&star_rating=ALL&verified_purchases_only=false&page=1`;
+      const apiUrl = `https://${RAPIDAPI_HOST}/product-reviews?asin=${asin}&country=US&sort_by=TOP_REVIEWS&star_rating=ALL&page=1`;
       
       const res = await fetch(apiUrl, {
         headers: {
@@ -54,7 +54,10 @@ export async function scrapeAmazon(asin: string): Promise<ScrapeResult> {
 
       console.log(`[Amazon] RapidAPI status: ${res.status}`);
 
-      if (res.ok) {
+      if (!res.ok) {
+        const errText = await res.clone().text();
+        console.error("[Amazon] RapidAPI error", res.status, errText.substring(0, 500));
+      } else {
         const json: RapidApiResponse = await res.json();
         console.log(`[Amazon] RapidAPI response status: ${json.status}`);
         console.log(`[Amazon] RapidAPI reviews count: ${json.data?.reviews?.length ?? 0}`);
@@ -80,30 +83,26 @@ export async function scrapeAmazon(asin: string): Promise<ScrapeResult> {
             reviews,
           };
         }
-      } else {
-        const errText = await res.text();
-        console.error(`[Amazon] RapidAPI error ${res.status}:`, errText.substring(0, 300));
       }
     } catch (err: any) {
       console.error("[Amazon] RapidAPI error:", err.message);
     }
   }
 
-  // ── Method 2: ScrapingBee with premium proxy + JS rendering ───────────────
+  // ── Method 2: ScrapingBee ────────────────────────────────────────
   if (process.env.SCRAPINGBEE_KEY) {
     try {
-      console.log("[Amazon] Method 2: Trying ScrapingBee premium proxy...");
+      console.log("[Amazon] Method 2: Trying ScrapingBee...");
       const targetUrl = `https://www.amazon.com/product-reviews/${asin}?sortBy=recent&pageNumber=1`;
-      const fetchUrl = `https://app.scrapingbee.com/api/v1/?api_key=${process.env.SCRAPINGBEE_KEY}&url=${encodeURIComponent(targetUrl)}&render_js=true&premium_proxy=true&country_code=us&wait=3000`;
+      const fetchUrl = `https://app.scrapingbee.com/api/v1/?api_key=${process.env.SCRAPINGBEE_KEY}&url=${encodeURIComponent(targetUrl)}&render_js=false&block_ads=true`;
 
       const res = await fetch(fetchUrl, { signal: AbortSignal.timeout(30000) });
       console.log(`[Amazon] ScrapingBee status: ${res.status}`);
 
       if (res.ok) {
         const html = await res.text();
-        console.log(`[Amazon] HTML length: ${html.length}`);
+        console.log(`[Amazon] ScrapingBee HTML length: ${html.length}`);
 
-        // Check for CAPTCHA
         if (html.toLowerCase().includes("captcha") || html.toLowerCase().includes("robot check")) {
           console.error("[Amazon] ❌ ScrapingBee got CAPTCHA'd");
         } else {
@@ -115,7 +114,7 @@ export async function scrapeAmazon(asin: string): Promise<ScrapeResult> {
           console.log("[Amazon] ScrapingBee HTML returned but no reviews parsed");
         }
       } else {
-        const errText = await res.text();
+        const errText = await res.clone().text();
         console.error("[Amazon] ScrapingBee error:", res.status, errText.substring(0, 300));
       }
     } catch (err: any) {
@@ -123,44 +122,10 @@ export async function scrapeAmazon(asin: string): Promise<ScrapeResult> {
     }
   }
 
-  // ── Method 3: Direct fetch (will likely fail, but worth trying) ───────────
-  try {
-    console.log("[Amazon] Method 3: Trying direct fetch (last resort)...");
-    const targetUrl = `https://www.amazon.com/product-reviews/${asin}?sortBy=recent&pageNumber=1`;
-    const res = await fetch(targetUrl, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
-      },
-      signal: AbortSignal.timeout(10000),
-    });
-
-    console.log(`[Amazon] Direct fetch status: ${res.status}`);
-
-    if (res.ok) {
-      const html = await res.text();
-      console.log(`[Amazon] HTML length: ${html.length}`);
-      
-      if (html.toLowerCase().includes("captcha")) {
-        console.log("[Amazon] Direct fetch got CAPTCHA");
-      } else {
-        const result = parseAmazonHTML(html, asin);
-        if (result.reviews.length > 0) {
-          console.log(`[Amazon] ✅ Direct fetch found ${result.reviews.length} reviews`);
-          return result;
-        }
-      }
-    }
-  } catch (err: any) {
-    console.error("[Amazon] Direct fetch error:", err.message);
-  }
-
   console.error("[Amazon] ❌ All methods failed");
   return {
     ...defaultResult,
-    error: "Could not fetch Amazon reviews. Please add a RAPIDAPI_KEY (free tier: 500 calls/month) in your environment variables. Get one at: https://rapidapi.com/letscrape-6bRBa3QguO5/api/real-time-amazon-data",
+    error: "Could not fetch Amazon reviews. Add RAPIDAPI_KEY or SCRAPINGBEE_KEY to environment variables.",
   };
 }
 

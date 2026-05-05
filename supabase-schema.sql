@@ -7,7 +7,7 @@ create extension if not exists "uuid-ossp";
 -- ─── Users table (extends Supabase auth.users) ────────────────────────────────
 create table public.users (
   id uuid references auth.users(id) on delete cascade primary key,
-  email text not null,
+  email text not null unique,
   plan text not null default 'free' check (plan in ('free', 'pro', 'agency')),
   reports_this_month integer not null default 0,
   stripe_customer_id text,
@@ -22,6 +22,10 @@ create policy "users: read own" on public.users
 
 create policy "users: update own" on public.users
   for update using (auth.uid() = id);
+
+-- Service role can upsert (from webhooks/API)
+create policy "users: service upsert" on public.users
+  for all using (true) with check (true);
 
 -- ─── Reports table ────────────────────────────────────────────────────────────
 create table public.reports (

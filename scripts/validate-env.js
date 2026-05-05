@@ -19,7 +19,7 @@ for (const line of envContent.split("\n")) {
 }
 
 const required = [
-  "ANTHROPIC_API_KEY",
+  "GOOGLE_API_KEY",
   "NEXT_PUBLIC_SUPABASE_URL",
   "NEXT_PUBLIC_SUPABASE_ANON_KEY",
   "SUPABASE_SERVICE_ROLE_KEY",

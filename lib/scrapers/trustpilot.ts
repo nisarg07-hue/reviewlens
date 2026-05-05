@@ -1,10 +1,5 @@
 import type { ScrapeResult, RawReview } from "@/types";
 
-// Trustpilot's public GraphQL endpoint (used by their own website)
-// No API key needed — this is the same data served to browsers
-
-const TRUSTPILOT_GQL = "https://www.trustpilot.com/_next/data";
-
 export async function scrapeTrustpilot(
   businessDomain: string
 ): Promise<ScrapeResult> {
@@ -20,16 +15,19 @@ export async function scrapeTrustpilot(
 
   console.log(`[Trustpilot] Starting scrape for: ${businessDomain}`);
 
-  // ── Method 1: ScrapingBee proxy (most reliable) ───────────────────────────
+  // ── Method 1: ScrapingBee (use if available) ───────────────────────────
   if (process.env.SCRAPINGBEE_KEY) {
     try {
-      console.log("[Trustpilot] Trying ScrapingBee proxy...");
-      const fetchUrl = `https://app.scrapingbee.com/api/v1/?api_key=${process.env.SCRAPINGBEE_KEY}&url=${encodeURIComponent(url)}&render_js=true&premium_proxy=true&country_code=us&wait=3000`;
+      console.log("[Trustpilot] Method 1: Trying ScrapingBee...");
+      const fetchUrl = `https://app.scrapingbee.com/api/v1/?api_key=${process.env.SCRAPINGBEE_KEY}&url=${encodeURIComponent(url)}&render_js=false&block_ads=true`;
       
       const res = await fetch(fetchUrl, { signal: AbortSignal.timeout(30000) });
       console.log(`[Trustpilot] ScrapingBee status: ${res.status}`);
       
-      if (res.ok) {
+      if (!res.ok) {
+        const errText = await res.clone().text();
+        console.error("[Trustpilot] ScrapingBee error:", res.status, errText.substring(0, 300));
+      } else {
         const html = await res.text();
         console.log(`[Trustpilot] HTML length: ${html.length}`);
         
@@ -47,7 +45,7 @@ export async function scrapeTrustpilot(
 
   // ── Method 2: Direct fetch with browser-like headers ──────────────────────
   try {
-    console.log("[Trustpilot] Trying direct fetch...");
+    console.log("[Trustpilot] Method 2: Trying direct fetch...");
     const res = await fetch(url, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
@@ -68,14 +66,12 @@ export async function scrapeTrustpilot(
       const html = await res.text();
       console.log(`[Trustpilot] HTML length: ${html.length}`);
 
-      // Try parsing JSON-LD first (embedded structured data)
       const jsonLdResult = parseTrustpilotJsonLd(html, businessDomain, url);
       if (jsonLdResult && jsonLdResult.reviews.length > 0) {
         console.log(`[Trustpilot] ✅ JSON-LD extracted ${jsonLdResult.reviews.length} reviews`);
         return jsonLdResult;
       }
 
-      // Then try HTML parsing
       const result = parseTrustpilotHTML(html, businessDomain, url);
       if (result.reviews.length > 0) {
         console.log(`[Trustpilot] ✅ HTML parsed ${result.reviews.length} reviews`);
@@ -86,60 +82,10 @@ export async function scrapeTrustpilot(
     console.error("[Trustpilot] Direct fetch error:", err.message);
   }
 
-  // ── Method 3: Use Trustpilot's embedded __NEXT_DATA__ JSON ────────────────
-  try {
-    console.log("[Trustpilot] Trying __NEXT_DATA__ extraction...");
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
-        "Accept": "text/html",
-      },
-      signal: AbortSignal.timeout(15000),
-    });
-
-    if (res.ok) {
-      const html = await res.text();
-      const nextDataMatch = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/);
-      
-      if (nextDataMatch) {
-        const nextData = JSON.parse(nextDataMatch[1]);
-        console.log("[Trustpilot] Found __NEXT_DATA__, extracting reviews...");
-        
-        // Navigate the Next.js page props to find reviews
-        const pageProps = nextData?.props?.pageProps;
-        if (pageProps?.reviews) {
-          const reviews: RawReview[] = pageProps.reviews.map((r: any, i: number) => ({
-            id: r.id || `tp-${i}`,
-            rating: r.rating || r.stars || 3,
-            title: r.title || "",
-            body: r.text || r.content || "",
-            date: r.createdAt || r.dates?.publishedDate || new Date().toISOString(),
-            author: r.consumer?.displayName || "Anonymous",
-            verified: r.isVerified ?? false,
-          }));
-
-          const validReviews = reviews.filter(r => r.body.length > 0);
-          console.log(`[Trustpilot] ✅ __NEXT_DATA__ found ${validReviews.length} reviews`);
-
-          return {
-            platform: "trustpilot",
-            productName: pageProps.businessUnit?.displayName || businessDomain,
-            productUrl: url,
-            totalReviews: pageProps.businessUnit?.numberOfReviews?.total || validReviews.length,
-            averageRating: pageProps.businessUnit?.score?.stars || 0,
-            reviews: validReviews,
-          };
-        }
-      }
-    }
-  } catch (err: any) {
-    console.error("[Trustpilot] __NEXT_DATA__ error:", err.message);
-  }
-
   console.error("[Trustpilot] ❌ All methods failed");
   return {
     ...defaultResult,
-    error: "Could not fetch Trustpilot reviews. The site may be blocking requests from this server.",
+    error: "Could not fetch Trustpilot reviews.",
   };
 }
 

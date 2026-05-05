@@ -14,16 +14,19 @@ export async function scrapeG2(productSlug: string): Promise<ScrapeResult> {
 
   console.log(`[G2] Starting scrape for: ${productSlug}`);
 
-  // ── Method 1: ScrapingBee with premium proxy ──────────────────────────────
+  // ── Method 1: ScrapingBee (always use if available) ─────────────────────
   if (process.env.SCRAPINGBEE_KEY) {
     try {
-      console.log("[G2] Trying ScrapingBee premium proxy...");
-      const fetchUrl = `https://app.scrapingbee.com/api/v1/?api_key=${process.env.SCRAPINGBEE_KEY}&url=${encodeURIComponent(url)}&render_js=true&premium_proxy=true&country_code=us&wait=3000`;
+      console.log("[G2] Method 1: Trying ScrapingBee...");
+      const fetchUrl = `https://app.scrapingbee.com/api/v1/?api_key=${process.env.SCRAPINGBEE_KEY}&url=${encodeURIComponent(url)}&render_js=false&block_ads=true`;
 
       const res = await fetch(fetchUrl, { signal: AbortSignal.timeout(30000) });
       console.log(`[G2] ScrapingBee status: ${res.status}`);
 
-      if (res.ok) {
+      if (!res.ok) {
+        const errText = await res.clone().text();
+        console.error("[G2] ScrapingBee error:", res.status, errText.substring(0, 300));
+      } else {
         const html = await res.text();
         console.log(`[G2] HTML length: ${html.length}`);
         
@@ -33,18 +36,15 @@ export async function scrapeG2(productSlug: string): Promise<ScrapeResult> {
           return result;
         }
         console.log("[G2] ScrapingBee returned HTML but no reviews parsed");
-      } else {
-        const errText = await res.text();
-        console.error("[G2] ScrapingBee error:", res.status, errText.substring(0, 200));
       }
     } catch (err: any) {
       console.error("[G2] ScrapingBee error:", err.message);
     }
   }
 
-  // ── Method 2: Direct fetch ────────────────────────────────────────────────
+  // ── Method 2: Direct fetch (fallback only) ────────────────────────────
   try {
-    console.log("[G2] Trying direct fetch...");
+    console.log("[G2] Method 2: Trying direct fetch...");
     const res = await fetch(url, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
@@ -66,7 +66,6 @@ export async function scrapeG2(productSlug: string): Promise<ScrapeResult> {
         return result;
       }
       
-      // Check if we got blocked
       if (html.includes("captcha") || html.includes("Verify") || html.length < 5000) {
         console.log("[G2] Likely blocked by CAPTCHA/Cloudflare");
       }
@@ -78,7 +77,7 @@ export async function scrapeG2(productSlug: string): Promise<ScrapeResult> {
   console.error("[G2] ❌ All methods failed");
   return {
     ...defaultResult,
-    error: "Could not fetch G2 reviews. G2 heavily blocks automated requests. Try Trustpilot or Amazon URLs instead.",
+    error: "Could not fetch G2 reviews. Try Trustpilot or Amazon URLs instead.",
   };
 }
 
