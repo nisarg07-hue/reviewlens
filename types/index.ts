@@ -1,6 +1,6 @@
 // ─── Platform types ───────────────────────────────────────────────────────────
 
-export type Platform = "amazon" | "g2" | "trustpilot" | "google" | "yelp";
+export type Platform = "amazon" | "g2" | "trustpilot" | "appstore" | "google" | "yelp";
 
 export interface DetectedPlatform {
   platform: Platform;

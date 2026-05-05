@@ -87,8 +87,8 @@ export async function POST(req: NextRequest): Promise<NextResponse<AnalyzeRespon
     );
   }
 
-  if (scrape.reviews.length < 3) {
-    console.log(`[Analyze] ❌ Only ${scrape.reviews.length} reviews — not enough (need 3+)`);
+  if (scrape.reviews.length < 2) {
+    console.log(`[Analyze] ❌ Only ${scrape.reviews.length} reviews — not enough (need 2+)`);
     return NextResponse.json(
       {
         success: false,

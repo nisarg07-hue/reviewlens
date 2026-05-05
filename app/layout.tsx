@@ -18,6 +18,9 @@ export const metadata: Metadata = {
   title: "ReviewLens — AI Review Intelligence",
   description:
     "Paste any Amazon, G2, or Trustpilot URL. Get an AI-powered analysis of what customers love and hate in 30 seconds.",
+  icons: {
+    icon: "/favicon.ico",
+  },
   openGraph: {
     title: "ReviewLens — AI Review Intelligence",
     description: "Know exactly what customers love and hate about any product.",

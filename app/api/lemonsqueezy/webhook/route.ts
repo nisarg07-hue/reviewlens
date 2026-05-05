@@ -121,9 +121,15 @@ export async function POST(req: Request) {
     console.log("[WEBHOOK] Step 7 — variantId type:", typeof variantId);
 
     // ── Step 8: Map to plan ─────────────────────────────────────────────────
-    const plan = variantId?.toString() === "1607145" ? "pro" : "agency";
+    // Variant ID mapping: 1607145 → 'pro', 1607165 → 'agency'
+    let plan = "free";
+    const variantIdStr = variantId?.toString();
+    if (variantIdStr === "1607145") {
+      plan = "pro";
+    } else if (variantIdStr === "1607165") {
+      plan = "agency";
+    }
     console.log(`[WEBHOOK] Step 8 — Mapped variantId "${variantId}" → plan "${plan}"`);
-    console.log(`[WEBHOOK] Step 8 — (Comparison: "${variantId?.toString()}" === "1607145" → ${variantId?.toString() === "1607145"})`);
 
     // ── Step 9: Initialize Supabase ─────────────────────────────────────────
     console.log("[WEBHOOK] Step 9 — Creating Supabase admin client...");

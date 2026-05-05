@@ -2,6 +2,7 @@ import type { DetectedPlatform, Platform, ScrapeResult } from "@/types";
 import { scrapeAmazon } from "./amazon";
 import { scrapeG2 } from "./g2";
 import { scrapeTrustpilot } from "./trustpilot";
+import { scrapeAppStore } from "./appstore";
 
 // ─── Detect which platform a URL belongs to ───────────────────────────────────
 
@@ -59,6 +60,21 @@ export function detectPlatform(url: string): DetectedPlatform | null {
       };
     }
 
+    // App Store
+    if (host === "apps.apple.com" || host.endsWith(".apps.apple.com")) {
+      const idMatch = url.match(/id(\d+)/);
+      if (!idMatch) {
+        console.log("[Scraper] App Store URL detected but no app ID found (need idXXXXXX)");
+        return null;
+      }
+      console.log(`[Scraper] ✅ App Store detected, ID: ${idMatch[1]}`);
+      return {
+        platform: "appstore",
+        identifier: idMatch[1],
+        displayName: "App Store",
+      };
+    }
+
     console.log(`[Scraper] ❌ Unrecognised platform: ${host}`);
     return null;
   } catch (err) {
@@ -86,6 +102,9 @@ export async function scrapeReviews(
       break;
     case "trustpilot":
       result = await scrapeTrustpilot(detected.identifier);
+      break;
+    case "appstore":
+      result = await scrapeAppStore(detected.identifier);
       break;
     default:
       result = {

@@ -1,16 +1,43 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type { ComparisonReport, CompareResponse } from "@/types";
 
 export default function ComparePage() {
   const router = useRouter();
+  const [isPro, setIsPro] = useState(false);
   const [urlA, setUrlA] = useState("");
   const [urlB, setUrlB] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "error" | "success">("idle");
   const [error, setError] = useState("");
   const [report, setReport] = useState<ComparisonReport | null>(null);
+
+  useEffect(() => {
+    const storedPlan = localStorage.getItem("reviewlens_plan_token");
+    if (storedPlan !== "pro" && storedPlan !== "agency") {
+      router.push("/?upgrade=compare");
+    } else {
+      setIsPro(true);
+    }
+  }, [router]);
+
+  if (!isPro) {
+    return (
+      <main className="min-h-screen bg-[#0B0B0F] text-white flex items-center justify-center">
+        <div className="text-center p-8">
+          <h1 className="text-2xl font-medium text-white mb-4">Pro Feature</h1>
+          <p className="text-white/40 mb-6">Competitor comparison is available on Pro and Agency plans.</p>
+          <button
+            onClick={() => router.push("/")}
+            className="px-6 py-2.5 rounded-lg bg-[#00C896] text-[#0B0B0F] text-sm font-medium"
+          >
+            Back to Home
+          </button>
+        </div>
+      </main>
+    );
+  }
 
   async function handleCompare(e: React.FormEvent) {
     e.preventDefault();
