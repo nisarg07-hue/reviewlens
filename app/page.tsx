@@ -89,7 +89,12 @@ export default function HomePage() {
       const data: AnalyzeResponse = await res.json();
 
       if (!data.success || !data.report) {
-        setStatus("error");
+        // Check quota/free limit reached from server
+        if (data.quotaReached) {
+          localStorage.setItem("reviewlens_usage_count", "3"); // Force paywall
+          setUsageCount(3);
+        }
+        setStatus(data.quotaReached ? "paywall" : "error");
         setError(data.error ?? "Something went wrong.");
         return;
       }

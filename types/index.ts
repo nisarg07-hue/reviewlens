@@ -94,6 +94,7 @@ export interface AnalyzeResponse {
   success: boolean;
   report?: AnalysisReport;
   error?: string;
+  quotaReached?: boolean;
 }
 
 export interface ComparisonReport {

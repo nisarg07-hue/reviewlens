@@ -1,0 +1,4 @@
+Summary of changes:
+ - fixed scraping issues for Amazon/G2/Trustpilot
+ - fixed Gemini analysis issues
+ - fixed LemonSqueezy webhook issues

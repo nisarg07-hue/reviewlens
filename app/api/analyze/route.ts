@@ -12,6 +12,7 @@ const BodySchema = z.object({
 });
 
 const ipCounts = new Map<string, { count: number; resetAt: number }>();
+const FREE_LIMIT = 3;
 
 function isRateLimited(ip: string): boolean {
   const now = Date.now();
@@ -20,9 +21,40 @@ function isRateLimited(ip: string): boolean {
     ipCounts.set(ip, { count: 1, resetAt: now + 60_000 });
     return false;
   }
-  if (entry.count >= 5) return true;
+  if (entry.count >= 10) return true; // Increased from 5 to 10
   entry.count++;
   return false;
+}
+
+async function checkQuota(session: any, ip: string): Promise<{ allowed: boolean; reason?: string; upgradeUrl?: string }> {
+  // Pro/agency users have unlimited
+  if (session?.user) {
+    const { getServerClient } = await import("@/utils/supabase/server");
+    const supabase = getServerClient();
+    const { data: userData } = await supabase
+      .from("users")
+      .select("plan")
+      .eq("id", session.user.id)
+      .single();
+    
+    if (userData?.plan === "pro" || userData?.plan === "agency") {
+      return { allowed: true };
+    }
+  }
+
+  // Check client-side usage count as fallback
+  const usageKey = `reviewlens_usage_${ip}`;
+  const usageCount = parseInt(process.env[usageKey] || "0", 10);
+
+  if (usageCount >= FREE_LIMIT) {
+    return { 
+      allowed: false, 
+      reason: "Free limit reached",
+      upgradeUrl: "/?paywall=true"
+    };
+  }
+
+  return { allowed: true };
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse<AnalyzeResponse>> {
@@ -37,6 +69,25 @@ export async function POST(req: NextRequest): Promise<NextResponse<AnalyzeRespon
     body = BodySchema.parse(await req.json());
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.errors?.[0]?.message ?? "Invalid request" }, { status: 400 });
+  }
+
+  // Check quota before processing
+  try {
+    const { getServerClient } = await import("@/utils/supabase/server");
+    const supabase = getServerClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    const quota = await checkQuota(session, ip);
+    if (!quota.allowed) {
+      return NextResponse.json({ 
+        success: false, 
+        error: quota.reason,
+        quotaReached: true 
+      }, { status: 403 });
+    }
+  } catch (err) {
+    // Allow through if DB check fails - rely on client-side check
+    console.log("[analyze] DB quota check skipped:", err);
   }
 
   try {
