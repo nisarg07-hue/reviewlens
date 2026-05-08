@@ -55,7 +55,9 @@ function AnalyzeContent() {
   const [isPro, setIsPro] = useState(false);
 
   useEffect(() => {
-    setIsPro(localStorage.getItem("reviewlens_pro_token") === "active");
+    const storedPlan = localStorage.getItem("reviewlens_plan_token");
+    setIsPro(storedPlan === "pro" || storedPlan === "agency");
+
     if (!id) { router.push("/"); return; }
     const cached = sessionStorage.getItem(`report_${id}`);
     if (cached) {
@@ -63,7 +65,23 @@ function AnalyzeContent() {
     } else {
       setError("Report not found. Please run a new analysis.");
     }
-  }, [id]);
+  }, [id, router]);
+
+  async function handleCheckout(variantId: string = "1607145") {
+    try {
+      const res = await fetch("/api/lemonsqueezy/checkout", { 
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ variantId })
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (err) {
+      console.error("Checkout failed", err);
+    }
+  }
 
   if (error) {
     return (
@@ -248,7 +266,10 @@ function AnalyzeContent() {
             <p className="text-white/40 text-sm mb-4">
               Want PDF export, competitor comparison, and unlimited reports?
             </p>
-            <button className="px-6 py-2.5 rounded-lg bg-[#00C896] text-[#0B0B0F] text-sm font-medium hover:bg-[#00D4A3] transition-colors">
+            <button 
+              onClick={() => handleCheckout("1607145")}
+              className="px-6 py-2.5 rounded-lg bg-[#00C896] text-[#0B0B0F] text-sm font-medium hover:bg-[#00D4A3] transition-colors"
+            >
               Upgrade to Pro — $29/mo
             </button>
           </div>

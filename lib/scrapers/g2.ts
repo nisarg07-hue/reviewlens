@@ -14,11 +14,66 @@ export async function scrapeG2(productSlug: string): Promise<ScrapeResult> {
 
   console.log(`[G2] Starting scrape for: ${productSlug}`);
 
-  // ── Method 1: ScrapingBee (always use if available) ─────────────────────
+  // ── Method 0: RapidAPI (Highest priority if G2_API_KEY exists) ─────────────
+  if (process.env.G2_API_KEY) {
+    try {
+      console.log("[G2] Method 0: Trying RapidAPI...");
+      const rapidApiUrl = `https://g2-data-api.p.rapidapi.com/g2-products?product=${encodeURIComponent(productSlug)}&max_reviews=50`;
+      
+      const res = await fetch(rapidApiUrl, {
+        headers: {
+          "X-RapidAPI-Key": process.env.G2_API_KEY,
+          "X-RapidAPI-Host": "g2-data-api.p.rapidapi.com",
+        },
+        signal: AbortSignal.timeout(60000)
+      });
+
+      console.log(`[G2] RapidAPI status: ${res.status}`);
+
+      if (res.ok) {
+        const data = await res.json();
+        
+        // Note: In this API, 'all_reviews' contains the list of review objects, 
+        // and 'reviews' contains the total count as an integer.
+        const reviewsList = data.all_reviews || data.initial_reviews || [];
+        
+        if (data && reviewsList.length > 0) {
+          console.log(`[G2] ✅ RapidAPI returned ${reviewsList.length} reviews`);
+          
+          const mappedReviews: RawReview[] = reviewsList.map((r: any) => ({
+            id: `g2-api-${r.review_id}`,
+            rating: r.review_rating || 5,
+            title: r.review_title,
+            body: r.review_content,
+            date: r.publish_date,
+            author: r.reviewer?.reviewer_name || "G2 User",
+            verified: true,
+          }));
+
+          return {
+            platform: "g2",
+            productName: data.product_name || productSlug,
+            productUrl: url,
+            totalReviews: typeof data.reviews === 'number' ? data.reviews : mappedReviews.length,
+            averageRating: data.rating || 0,
+            reviews: mappedReviews,
+          };
+        }
+        console.log("[G2] RapidAPI returned no reviews", { hasData: !!data, reviewsListLength: reviewsList.length });
+      } else {
+        const errText = await res.text();
+        console.error("[G2] RapidAPI error:", res.status, errText.substring(0, 300));
+      }
+    } catch (err: any) {
+      console.error("[G2] RapidAPI error:", err.message);
+    }
+  }
+
+  // ── Method 1: ScrapingBee (fallback) ───────────────────────────────────
   if (process.env.SCRAPINGBEE_KEY) {
     try {
       console.log("[G2] Method 1: Trying ScrapingBee...");
-      const fetchUrl = `https://app.scrapingbee.com/api/v1/?api_key=${process.env.SCRAPINGBEE_KEY}&url=${encodeURIComponent(url)}&render_js=true&premium_proxy=true&block_ads=true`;
+      const fetchUrl = `https://app.scrapingbee.com/api/v1/?api_key=${process.env.SCRAPINGBEE_KEY}&url=${encodeURIComponent(url)}&render_js=true&premium_proxy=true&block_ads=false&block_resources=false&wait=5000`;
 
       const res = await fetch(fetchUrl, { signal: AbortSignal.timeout(60000) });
       console.log(`[G2] ScrapingBee status: ${res.status}`);
@@ -77,7 +132,7 @@ export async function scrapeG2(productSlug: string): Promise<ScrapeResult> {
   console.error("[G2] ❌ All methods failed");
   return {
     ...defaultResult,
-    error: "Could not fetch G2 reviews. Try Trustpilot or Amazon URLs instead.",
+    error: "Could not fetch G2 reviews. Please check your G2_API_KEY or try again later.",
   };
 }
 

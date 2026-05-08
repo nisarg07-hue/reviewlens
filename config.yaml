@@ -1,0 +1,25 @@
+model_list:
+  - model_name: claude-3-5-sonnet-20241022
+    litellm_params:
+      model: nvidia_nim/meta/llama-3.1-8b-instruct
+      api_key: "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"
+      drop_params: true
+      additional_drop_params: [ "output_config" ]
+  - model_name: claude-sonnet-4-6
+    litellm_params:
+      model: nvidia_nim/meta/llama-3.1-8b-instruct
+      api_key: "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"
+      drop_params: true
+      additional_drop_params: [ "output_config" ]
+  - model_name: claude-3-5-sonnet
+    litellm_params:
+      model: nvidia_nim/meta/llama-3.1-8b-instruct
+      api_key: "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"
+      drop_params: true
+      additional_drop_params: [ "output_config" ]
+  - model_name: claude-opus-4-7
+    litellm_params:
+      model: nvidia_nim/meta/llama-3.1-8b-instruct
+      api_key: "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"
+      drop_params: true
+      additional_drop_params: [ "output_config" ]

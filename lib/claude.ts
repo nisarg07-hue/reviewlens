@@ -1,7 +1,7 @@
 import type { AnalysisReport, ScrapeResult, ComparisonReport } from "@/types";
 
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY ?? "";
-const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent";
+const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent";
 
 const SYSTEM_PROMPT = `You are ReviewLens, an expert product intelligence analyst.
 You receive raw customer reviews and return a structured JSON analysis.

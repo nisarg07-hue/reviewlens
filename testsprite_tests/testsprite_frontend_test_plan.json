@@ -1,0 +1,1203 @@
+[
+  {
+    "id": "TC001",
+    "title": "Analyze a supported review URL end to end",
+    "description": "A free visitor can submit a supported review URL from the home page, watch the analysis progress, and reach a usable report.",
+    "category": "Review Analysis",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill a supported product review URL into the analysis input"
+      },
+      {
+        "type": "action",
+        "description": "Submit the analysis request"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the analysis loading phases are displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a completed analysis report is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC002",
+    "title": "Complete a free analysis from the home page",
+    "description": "This verifies that a free visitor can submit a supported review URL, wait for the analysis process, and reach a usable report.",
+    "category": "Free Usage Limit",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Paste a supported product review URL into the analysis input"
+      },
+      {
+        "type": "action",
+        "description": "Run the analysis"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the analysis report is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the report includes analysis results"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC003",
+    "title": "Run a supported review analysis from the homepage",
+    "description": "A free visitor can submit a supported review URL from the home page and reach a usable analysis report with the expected loading journey.",
+    "category": "Payment and Plan Upgrade",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill a supported review URL into the review URL field"
+      },
+      {
+        "type": "action",
+        "description": "Start the analysis"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the analysis loading phases are shown"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a usable analysis report is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC004",
+    "title": "Reach the paywall after using the free quota",
+    "description": "This verifies that a free visitor is prompted to upgrade after completing the third analysis.",
+    "category": "Free Usage Limit",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Paste a supported product review URL into the analysis input"
+      },
+      {
+        "type": "action",
+        "description": "Run the analysis"
+      },
+      {
+        "type": "action",
+        "description": "Paste another supported product review URL into the analysis input"
+      },
+      {
+        "type": "action",
+        "description": "Run the analysis"
+      },
+      {
+        "type": "action",
+        "description": "Paste a third supported product review URL into the analysis input"
+      },
+      {
+        "type": "action",
+        "description": "Run the analysis"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an upgrade prompt is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the paywall modal is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC005",
+    "title": "See the free usage paywall after exhausting analyses",
+    "description": "A free user who has reached the analysis limit is shown the upgrade prompt instead of starting another analysis.",
+    "category": "Payment and Plan Upgrade",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill a supported review URL into the review URL field"
+      },
+      {
+        "type": "action",
+        "description": "Start the analysis"
+      },
+      {
+        "type": "action",
+        "description": "Fill a different supported review URL into the review URL field"
+      },
+      {
+        "type": "action",
+        "description": "Start the analysis"
+      },
+      {
+        "type": "action",
+        "description": "Fill another different supported review URL into the review URL field"
+      },
+      {
+        "type": "action",
+        "description": "Start the analysis"
+      },
+      {
+        "type": "action",
+        "description": "Fill a fourth supported review URL into the review URL field"
+      },
+      {
+        "type": "action",
+        "description": "Start the analysis"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an upgrade prompt is shown"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify further analysis is blocked"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC006",
+    "title": "Enforce the free analysis quota with upgrade prompt",
+    "description": "A free visitor who completes the allowed number of analyses is shown the paywall modal and upgrade options on the next attempt.",
+    "category": "Review Analysis",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Complete the analysis flow with a supported product review URL"
+      },
+      {
+        "type": "action",
+        "description": "Repeat the analysis flow with a second supported product review URL"
+      },
+      {
+        "type": "action",
+        "description": "Repeat the analysis flow with a third supported product review URL"
+      },
+      {
+        "type": "action",
+        "description": "Attempt another analysis with a supported product review URL"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a paywall modal is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify upgrade options are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC007",
+    "title": "Open the dashboard after sign-in",
+    "description": "An authenticated user can access the dashboard and see their saved reports.",
+    "category": "User Authentication",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the login email with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the login password with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the sign-in form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /dashboard"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the dashboard is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify saved reports are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC008",
+    "title": "See the loading journey during analysis",
+    "description": "A free visitor sees the expected review analysis progress states before the report is shown.",
+    "category": "Payment and Plan Upgrade",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill a supported review URL into the review URL field"
+      },
+      {
+        "type": "action",
+        "description": "Start the analysis"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the platform detection phase is shown"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the review fetching phase is shown"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the AI analysis phase is shown"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC009",
+    "title": "See the free usage counter after running an analysis",
+    "description": "This verifies that a free visitor can view their remaining analysis usage after completing a report.",
+    "category": "Free Usage Limit",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Paste a supported product review URL into the analysis input"
+      },
+      {
+        "type": "action",
+        "description": "Run the analysis"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the free usage counter is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the counter reflects one completed analysis"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC010",
+    "title": "Request an upgrade from the paywall modal",
+    "description": "A free user can open the upgrade flow from the paywall prompt after exhausting free analyses.",
+    "category": "Payment and Plan Upgrade",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill a supported review URL into the review URL field"
+      },
+      {
+        "type": "action",
+        "description": "Start the analysis"
+      },
+      {
+        "type": "action",
+        "description": "Fill a different supported review URL into the review URL field"
+      },
+      {
+        "type": "action",
+        "description": "Start the analysis"
+      },
+      {
+        "type": "action",
+        "description": "Fill another different supported review URL into the review URL field"
+      },
+      {
+        "type": "action",
+        "description": "Start the analysis"
+      },
+      {
+        "type": "action",
+        "description": "Fill a fourth supported review URL into the review URL field"
+      },
+      {
+        "type": "action",
+        "description": "Start the analysis"
+      },
+      {
+        "type": "action",
+        "description": "Choose the upgrade option from the paywall"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the checkout flow is opened"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC011",
+    "title": "Analyze from an example URL shortcut",
+    "description": "A visitor can use an example URL on the home page to auto-fill the analysis input and reach a completed report.",
+    "category": "Review Analysis",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Select an example product URL"
+      },
+      {
+        "type": "action",
+        "description": "Submit the analysis request"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the analysis loading phases are displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a completed analysis report is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC012",
+    "title": "Compare two products side by side",
+    "description": "An authenticated user can submit two product URLs on the compare page and review the resulting comparison and winner.",
+    "category": "Compare Products",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the login email with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the login password with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the sign-in form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /compare"
+      },
+      {
+        "type": "action",
+        "description": "Fill a first supported product review URL into the first comparison field"
+      },
+      {
+        "type": "action",
+        "description": "Fill a second supported product review URL into the second comparison field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the comparison request"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the executive summary is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the winner is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify feature-by-feature results are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC013",
+    "title": "Compare two products and review the winner",
+    "description": "A paid user can submit two product URLs on the comparison page and see the executive summary, winner, and breakdown results.",
+    "category": "Competitor Comparison",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the sign-in request"
+      },
+      {
+        "type": "action",
+        "description": "Complete the authentication callback"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /compare"
+      },
+      {
+        "type": "action",
+        "description": "Fill a supported review URL into the first product field"
+      },
+      {
+        "type": "action",
+        "description": "Fill a different supported review URL into the second product field"
+      },
+      {
+        "type": "action",
+        "description": "Start the comparison"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the executive summary and overall winner are displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the strengths, weaknesses, and feature-by-feature results are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC014",
+    "title": "View report insights on the analysis page",
+    "description": "A user viewing a completed analysis can see the key report sections needed to interpret review sentiment and themes.",
+    "category": "Analysis Report Display",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /analyze"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify sentiment breakdown content is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify star distribution content is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify pain points content is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify praises content is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify improvement ideas content is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify competitor signal content is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC015",
+    "title": "Review the key sections of an analysis report",
+    "description": "A generated analysis report shows the core insights users need to evaluate a product review summary.",
+    "category": "Payment and Plan Upgrade",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill a supported review URL into the review URL field"
+      },
+      {
+        "type": "action",
+        "description": "Start the analysis"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the sentiment breakdown is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the pain points, praises, and improvement ideas are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC016",
+    "title": "See loading phases during analysis",
+    "description": "A visitor submitting a supported review URL sees the expected analysis progress states before the report appears.",
+    "category": "Review Analysis",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill a supported product review URL into the analysis input"
+      },
+      {
+        "type": "action",
+        "description": "Submit the analysis request"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the detecting platform phase is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the fetching reviews phase is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the running AI analysis phase is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC017",
+    "title": "Access the dashboard after signing in",
+    "description": "A signed-in user can reach the dashboard and see saved reports instead of an upgrade prompt when they have a paid plan.",
+    "category": "Dashboard",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the sign-in request"
+      },
+      {
+        "type": "action",
+        "description": "Complete the authentication callback"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /dashboard"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify saved reports are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC018",
+    "title": "Open the upgrade flow from the paywall",
+    "description": "This verifies that a free visitor can use the paywall to reach the upgrade checkout flow.",
+    "category": "Free Usage Limit",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Paste a supported product review URL into the analysis input"
+      },
+      {
+        "type": "action",
+        "description": "Run the analysis"
+      },
+      {
+        "type": "action",
+        "description": "Repeat analysis submissions until the free quota is exhausted"
+      },
+      {
+        "type": "action",
+        "description": "Open the paywall modal upgrade action"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the checkout flow is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the user is presented with an upgrade purchase option"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC019",
+    "title": "Open a saved report from the dashboard",
+    "description": "A paid user can open a saved report card from the dashboard and view the stored analysis page.",
+    "category": "Dashboard",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the sign-in request"
+      },
+      {
+        "type": "action",
+        "description": "Complete the authentication callback"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /dashboard"
+      },
+      {
+        "type": "action",
+        "description": "Open a saved report card"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the saved analysis page is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC020",
+    "title": "Copy a report link from the analysis page",
+    "description": "A user can copy a generated report link from the analysis page for sharing or later access.",
+    "category": "Payment and Plan Upgrade",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill a supported review URL into the review URL field"
+      },
+      {
+        "type": "action",
+        "description": "Start the analysis"
+      },
+      {
+        "type": "action",
+        "description": "Copy the report link"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a copied-link confirmation is visible"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC021",
+    "title": "Reach the report from the analysis page",
+    "description": "A completed analysis opens the report view on the analysis page with the generated results available to review.",
+    "category": "Review Analysis",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill a supported product review URL into the analysis input"
+      },
+      {
+        "type": "action",
+        "description": "Submit the analysis request"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the user reaches the analysis report page"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the report summary content is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC022",
+    "title": "Analyze a supported example URL from the home page",
+    "description": "This verifies that a visitor can use an example product URL from the home page to start analysis successfully.",
+    "category": "Free Usage Limit",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Select a supported example review URL from the home page"
+      },
+      {
+        "type": "action",
+        "description": "Run the analysis"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the analysis report is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the report is usable"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC023",
+    "title": "See the dashboard upgrade prompt as a free user",
+    "description": "A free signed-in user sees an upgrade prompt on the dashboard instead of saved reports.",
+    "category": "Dashboard",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the sign-in request"
+      },
+      {
+        "type": "action",
+        "description": "Complete the authentication callback"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /dashboard"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an upgrade prompt is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC024",
+    "title": "Export a report as a Pro user",
+    "description": "A paid user can export the analysis report to PDF from the report page.",
+    "category": "Analysis Report Display",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /analyze"
+      },
+      {
+        "type": "action",
+        "description": "Export the report to PDF"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a downloadable PDF export is available"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC025",
+    "title": "Start a new comparison after finishing one",
+    "description": "A paid user can complete one comparison and then run another with the form ready for new inputs.",
+    "category": "Competitor Comparison",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the sign-in request"
+      },
+      {
+        "type": "action",
+        "description": "Complete the authentication callback"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /compare"
+      },
+      {
+        "type": "action",
+        "description": "Fill a supported review URL into the first product field"
+      },
+      {
+        "type": "action",
+        "description": "Fill a different supported review URL into the second product field"
+      },
+      {
+        "type": "action",
+        "description": "Start the comparison"
+      },
+      {
+        "type": "action",
+        "description": "Start another comparison"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the comparison form is reset for a new run"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC026",
+    "title": "Open the PDF export option for a paid report",
+    "description": "A paid user can access the PDF export control from an analysis report.",
+    "category": "Payment and Plan Upgrade",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill a supported review URL into the review URL field"
+      },
+      {
+        "type": "action",
+        "description": "Start the analysis"
+      },
+      {
+        "type": "action",
+        "description": "Open the PDF export control"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the PDF export option is available"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC027",
+    "title": "Copy the report link for sharing",
+    "description": "A user can copy the analysis report link from the report page and see confirmation that it is ready to share.",
+    "category": "Analysis Report Display",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /analyze"
+      },
+      {
+        "type": "action",
+        "description": "Copy the report link"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a share-ready confirmation is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC028",
+    "title": "View the homepage pricing upgrade entry point",
+    "description": "A visitor can open the pricing section on the homepage and access an upgrade path from the plan cards.",
+    "category": "Payment and Plan Upgrade",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Scroll to the pricing section"
+      },
+      {
+        "type": "action",
+        "description": "Choose a Pro or Agency plan"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the checkout flow is opened"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC029",
+    "title": "Block unsupported review platforms",
+    "description": "A visitor entering an unsupported or coming-soon review URL sees validation feedback instead of starting analysis.",
+    "category": "Review Analysis",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill an unsupported review platform URL into the analysis input"
+      },
+      {
+        "type": "action",
+        "description": "Submit the analysis request"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a validation error is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify no analysis report is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC030",
+    "title": "Request a magic link from the login page",
+    "description": "A visitor can request magic-link sign-in from the login page and receive a confirmation to check their email.",
+    "category": "User Authentication",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill an email address into the sign-in field"
+      },
+      {
+        "type": "action",
+        "description": "Request the magic link"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a confirmation message is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC031",
+    "title": "Request a magic-link sign-in",
+    "description": "A visitor can request a sign-in link from the login page and receive a confirmation that the request was sent.",
+    "category": "Payment and Plan Upgrade",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the sign-in request"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a sign-in request confirmation is visible"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC032",
+    "title": "Prompt free users to upgrade for export",
+    "description": "A free user viewing a report sees the upgrade prompt when trying to access restricted export functionality.",
+    "category": "Analysis Report Display",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /analyze"
+      },
+      {
+        "type": "action",
+        "description": "Attempt to export the report to PDF"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an upgrade prompt is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC033",
+    "title": "See validation for an unsupported review platform",
+    "description": "A visitor is prevented from starting analysis with an unsupported review URL and sees a validation message.",
+    "category": "Payment and Plan Upgrade",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill an unsupported review URL into the review URL field"
+      },
+      {
+        "type": "action",
+        "description": "Start the analysis"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a validation error is visible"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC034",
+    "title": "Reject an unsupported review URL",
+    "description": "This verifies that a visitor sees validation feedback when submitting a review URL from an unsupported platform.",
+    "category": "Free Usage Limit",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Paste an unsupported review URL into the analysis input"
+      },
+      {
+        "type": "action",
+        "description": "Run the analysis"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a validation error is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify no analysis report is shown"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC035",
+    "title": "See the coming-soon platform message for Google or Yelp",
+    "description": "A visitor using a coming-soon review platform is shown that the platform is not yet supported.",
+    "category": "Payment and Plan Upgrade",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill a Google or Yelp review URL into the review URL field"
+      },
+      {
+        "type": "action",
+        "description": "Start the analysis"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a coming-soon message is visible"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC036",
+    "title": "Return to the home page from login",
+    "description": "A visitor can use the back navigation option on the login page to return to the home page.",
+    "category": "User Authentication",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Use the back navigation option"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the home page is displayed"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC037",
+    "title": "Show coming-soon platform guidance",
+    "description": "This verifies that a visitor gets clear guidance when choosing a coming-soon platform instead of a supported one.",
+    "category": "Free Usage Limit",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Select a coming-soon platform option"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a coming-soon message is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify analysis cannot be started for that platform"
+      }
+    ],
+    "priority": "Low"
+  }
+]

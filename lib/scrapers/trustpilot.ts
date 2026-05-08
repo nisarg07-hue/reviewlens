@@ -19,9 +19,9 @@ export async function scrapeTrustpilot(
   if (process.env.SCRAPINGBEE_KEY) {
     try {
       console.log("[Trustpilot] Method 1: Trying ScrapingBee...");
-      const fetchUrl = `https://app.scrapingbee.com/api/v1/?api_key=${process.env.SCRAPINGBEE_KEY}&url=${encodeURIComponent(url)}&render_js=false&block_ads=true`;
+      const fetchUrl = `https://app.scrapingbee.com/api/v1/?api_key=${process.env.SCRAPINGBEE_KEY}&url=${encodeURIComponent(url)}&render_js=true&premium_proxy=true&block_ads=false&block_resources=false&wait=5000`;
       
-      const res = await fetch(fetchUrl, { signal: AbortSignal.timeout(30000) });
+      const res = await fetch(fetchUrl, { signal: AbortSignal.timeout(60000) });
       console.log(`[Trustpilot] ScrapingBee status: ${res.status}`);
       
       if (!res.ok) {
