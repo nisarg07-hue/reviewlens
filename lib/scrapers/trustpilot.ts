@@ -1,5 +1,8 @@
 import type { ScrapeResult, RawReview } from "@/types";
 
+const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY ?? "";
+const RAPIDAPI_HOST = "trustpilot-reviews-scraper.p.rapidapi.com";
+
 export async function scrapeTrustpilot(
   businessDomain: string,
   retries = 3,
@@ -20,6 +23,52 @@ export async function scrapeTrustpilot(
   const attemptScrape = async (attempt: number): Promise<ScrapeResult | null> => {
     console.log(`[Trustpilot] Attempt ${attempt}/${retries + 1}...`);
 
+    // Method 0: RapidAPI (Trustpilot Reviews Scraper)
+    if (RAPIDAPI_KEY) {
+      try {
+        console.log("[Trustpilot] Method 0: Trying RapidAPI...");
+        const apiUrl = `https://${RAPIDAPI_HOST}/reviews?domain=${businessDomain}&page=1`;
+        
+        const res = await fetch(apiUrl, {
+          headers: {
+            "x-rapidapi-key": RAPIDAPI_KEY,
+            "x-rapidapi-host": RAPIDAPI_HOST,
+          },
+          signal: AbortSignal.timeout(20000),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          // The API structure for this RapidAPI often returns { reviews: [...], total_reviews: 123, rating: 4.5 }
+          const reviewsList = data.reviews || [];
+          if (reviewsList.length > 0) {
+            const reviews: RawReview[] = reviewsList.map((r: any, i: number) => ({
+              id: r.id || `tp-api-${i}`,
+              rating: r.rating || 5,
+              title: r.title || "",
+              body: r.text || r.content || "",
+              date: r.date || new Date().toISOString(),
+              author: r.author || "User",
+            }));
+
+            console.log(`[Trustpilot] ✅ RapidAPI returned ${reviews.length} reviews`);
+            return {
+              platform: "trustpilot",
+              productName: data.business_name || businessDomain,
+              productUrl: url,
+              totalReviews: data.total_reviews || reviews.length,
+              averageRating: data.rating || 0,
+              reviews,
+            };
+          }
+        } else {
+          console.log(`[Trustpilot] RapidAPI status: ${res.status}`);
+        }
+      } catch (err: any) {
+        console.error("[Trustpilot] RapidAPI error:", err.message);
+      }
+    }
+
     // Method 1: ScrapingBee (use if available)
     if (process.env.SCRAPINGBEE_KEY) {
       try {
@@ -29,89 +78,54 @@ export async function scrapeTrustpilot(
         const res = await fetch(fetchUrl, { signal: AbortSignal.timeout(60000) });
         console.log(`[Trustpilot] ScrapingBee status: ${res.status}`);
 
-        // Handle rate limiting with retry
         if (res.status === 429 || res.status === 503) {
           console.log(`[Trustpilot] Rate limited (${res.status}), backing off...`);
-          return null; // Trigger retry
+          return null; 
         }
 
-        if (!res.ok) {
-          const errText = await res.clone().text();
-          console.error("[Trustpilot] ScrapingBee error:", res.status, errText.substring(0, 300));
-          // Don't return error yet, try direct fetch
-        } else {
+        if (res.ok) {
           const html = await res.text();
-          console.log(`[Trustpilot] HTML length: ${html.length}`);
-
           const result = parseTrustpilotHTML(html, businessDomain, url);
           if (result.reviews.length > 0) {
             console.log(`[Trustpilot] ✅ ScrapingBee found ${result.reviews.length} reviews`);
             return result;
           }
-          console.log("[Trustpilot] ScrapingBee returned HTML but no reviews parsed");
         }
       } catch (err: any) {
         console.error("[Trustpilot] ScrapingBee error:", err.message);
       }
     }
 
-    // Method 2: Direct fetch with browser-like headers
-    try {
-      console.log("[Trustpilot] Method 2: Trying direct fetch...");
+    // Method 2: RapidAPI General Web Scraper (fallback for Vercel IP block)
+    if (RAPIDAPI_KEY) {
+      try {
+        console.log("[Trustpilot] Method 2: Trying General Web Scraper Proxy...");
+        const scraperUrl = `https://web-scraper.p.rapidapi.com/scrape?url=${encodeURIComponent(url)}&proxy_type=residential`;
+        
+        const res = await fetch(scraperUrl, {
+          headers: {
+            "x-rapidapi-key": RAPIDAPI_KEY,
+            "x-rapidapi-host": "web-scraper.p.rapidapi.com",
+          },
+          signal: AbortSignal.timeout(30000),
+        });
 
-      // Add random jitter delay to look more like a real user
-      const jitter = Math.floor(Math.random() * 1000) + 500;
-      await new Promise(r => setTimeout(r, jitter));
-
-      const res = await fetch(url, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
-          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-          "Accept-Language": "en-US,en;q=0.9",
-          "Accept-Encoding": "gzip, deflate, br, zstd",
-          "Referer": "https://www.google.com/",
-          "Sec-Ch-Ua": '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
-          "Sec-Ch-Ua-Mobile": "?0",
-          "Sec-Ch-Ua-Platform": '"Windows"',
-          "Sec-Fetch-Dest": "document",
-          "Sec-Fetch-Mode": "navigate",
-          "Sec-Fetch-Site": "cross-site",
-          "Sec-Fetch-User": "?1",
-          "Upgrade-Insecure-Requests": "1"
-        },
-        signal: AbortSignal.timeout(15000),
-      });
-
-      console.log(`[Trustpilot] Direct fetch status: ${res.status}`);
-
-      // Handle rate limiting with retry
-      if (res.status === 429 || res.status === 503) {
-        console.log(`[Trustpilot] Rate limited (${res.status}), backing off...`);
-        return null;
-      }
-
-      if (res.ok) {
-        const html = await res.text();
-        console.log(`[Trustpilot] HTML length: ${html.length}`);
-
-        const jsonLdResult = parseTrustpilotJsonLd(html, businessDomain, url);
-        if (jsonLdResult && jsonLdResult.reviews.length > 0) {
-          console.log(`[Trustpilot] ✅ JSON-LD extracted ${jsonLdResult.reviews.length} reviews`);
-          return jsonLdResult;
+        if (res.ok) {
+          const html = await res.text();
+          const result = parseTrustpilotHTML(html, businessDomain, url);
+          if (result.reviews.length > 0) {
+            console.log(`[Trustpilot] ✅ Proxy Scraper found ${result.reviews.length} reviews`);
+            return result;
+          }
         }
-
-        const result = parseTrustpilotHTML(html, businessDomain, url);
-        if (result.reviews.length > 0) {
-          console.log(`[Trustpilot] ✅ HTML parsed ${result.reviews.length} reviews`);
-          return result;
-        }
+      } catch (err: any) {
+        console.error("[Trustpilot] Proxy Scraper error:", err.message);
       }
-    } catch (err: any) {
-      console.error("[Trustpilot] Direct fetch error:", err.message);
     }
 
     return null;
   };
+
 
   // Retry loop with exponential backoff
   for (let i = 0; i <= retries; i++) {
