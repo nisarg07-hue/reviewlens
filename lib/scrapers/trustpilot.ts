@@ -30,10 +30,51 @@ export async function scrapeTrustpilot(
   const attemptScrape = async (attempt: number): Promise<ScrapeResult | null> => {
     console.log(`[Trustpilot] Attempt ${attempt}/${retries + 1}...`);
 
-    // Method 0: RapidAPI (Trustpilot Reviews Scraper)
+    // Method 0: RocketAPI (Fastest - Trustpilot-specific)
     if (RAPIDAPI_KEY) {
       try {
-        console.log("[Trustpilot] Method 0: Trying RapidAPI (Dedicated Scraper)...");
+        console.log("[Trustpilot] Method 0: Trying RocketAPI (Fastest)...");
+        const rocketUrl = `https://rocketapi-trustpilot.p.rapidapi.com/v1/reviews?domain=${businessDomain}`;
+        
+        const res = await fetch(rocketUrl, {
+          headers: {
+            "x-rapidapi-key": RAPIDAPI_KEY,
+            "x-rapidapi-host": "rocketapi-trustpilot.p.rapidapi.com",
+          },
+          signal: AbortSignal.timeout(6000), // Strict 6s timeout
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const reviewsList = data.reviews || [];
+          if (reviewsList.length > 0) {
+            console.log(`[Trustpilot] ✅ RocketAPI returned ${reviewsList.length} reviews`);
+            return {
+              platform: "trustpilot",
+              productName: data.name || businessDomain,
+              productUrl: url,
+              totalReviews: data.count || reviewsList.length,
+              averageRating: data.rating || 0,
+              reviews: reviewsList.map((r: any, i: number) => ({
+                id: r.id || `tp-rk-${i}`,
+                rating: r.rating || 5,
+                title: r.title || "",
+                body: r.text || "",
+                date: r.created_at || new Date().toISOString(),
+                author: r.user?.name || "User",
+              })),
+            };
+          }
+        }
+      } catch (err: any) {
+        console.error("[Trustpilot] RocketAPI error:", err.message);
+      }
+    }
+
+    // Method 1: RapidAPI (Dedicated Scraper)
+    if (RAPIDAPI_KEY) {
+      try {
+        console.log("[Trustpilot] Method 1: Trying RapidAPI (Dedicated)...");
         const apiUrl = `https://${RAPIDAPI_HOST}/reviews?domain=${businessDomain}&page=1`;
         
         const res = await fetch(apiUrl, {
@@ -41,7 +82,7 @@ export async function scrapeTrustpilot(
             "x-rapidapi-key": RAPIDAPI_KEY,
             "x-rapidapi-host": RAPIDAPI_HOST,
           },
-          signal: AbortSignal.timeout(20000),
+          signal: AbortSignal.timeout(6000), // Strict 6s timeout
         });
 
         if (res.ok) {
@@ -73,35 +114,19 @@ export async function scrapeTrustpilot(
       }
     }
 
-    // Method 1: ScrapingBee
-    if (process.env.SCRAPINGBEE_KEY) {
-      try {
-        console.log("[Trustpilot] Method 1: Trying ScrapingBee...");
-        const fetchUrl = `https://app.scrapingbee.com/api/v1/?api_key=${process.env.SCRAPINGBEE_KEY}&url=${encodeURIComponent(url)}&render_js=true&premium_proxy=true&block_ads=false&block_resources=false&wait=5000`;
-
-        const res = await fetch(fetchUrl, { signal: AbortSignal.timeout(60000) });
-        if (res.ok) {
-          const html = await res.text();
-          const result = parseTrustpilotHTML(html, businessDomain, url);
-          if (result.reviews.length > 0) return result;
-        }
-      } catch (err: any) {
-        console.error("[Trustpilot] ScrapingBee error:", err.message);
-      }
-    }
-
-    // Method 2: RapidAPI ScraperAPI (Residential + Render)
+    // Method 2: RapidAPI ScraperAPI (Residential Proxy - No Render for speed)
     if (RAPIDAPI_KEY) {
       try {
-        console.log("[Trustpilot] Method 2: Trying ScraperAPI (Residential + Render)...");
-        const scraperUrl = `https://scraperapi.p.rapidapi.com/get?url=${encodeURIComponent(url)}&residential=true&render=true`;
+        console.log("[Trustpilot] Method 2: Trying ScraperAPI (Residential Proxy)...");
+        // Removed &render=true as it's too slow for Vercel Hobby
+        const scraperUrl = `https://scraperapi.p.rapidapi.com/get?url=${encodeURIComponent(url)}&residential=true`;
         
         const res = await fetch(scraperUrl, {
           headers: {
             "x-rapidapi-key": RAPIDAPI_KEY,
             "x-rapidapi-host": "scraperapi.p.rapidapi.com",
           },
-          signal: AbortSignal.timeout(50000),
+          signal: AbortSignal.timeout(6000), // Strict 6s timeout
         });
 
         if (res.ok) {
@@ -114,49 +139,26 @@ export async function scrapeTrustpilot(
       }
     }
 
-    // Method 3: RapidAPI RocketAPI (Trustpilot-specific fallback)
-    if (RAPIDAPI_KEY) {
+    // Method 3: ScrapingBee (Fallback)
+    if (process.env.SCRAPINGBEE_KEY) {
       try {
-        console.log("[Trustpilot] Method 3: Trying RocketAPI (Trustpilot Fallback)...");
-        const rocketUrl = `https://rocketapi-trustpilot.p.rapidapi.com/v1/reviews?domain=${businessDomain}`;
-        
-        const res = await fetch(rocketUrl, {
-          headers: {
-            "x-rapidapi-key": RAPIDAPI_KEY,
-            "x-rapidapi-host": "rocketapi-trustpilot.p.rapidapi.com",
-          },
-          signal: AbortSignal.timeout(30000),
-        });
+        console.log("[Trustpilot] Method 3: Trying ScrapingBee...");
+        const fetchUrl = `https://app.scrapingbee.com/api/v1/?api_key=${process.env.SCRAPINGBEE_KEY}&url=${encodeURIComponent(url)}&render_js=false&premium_proxy=true`;
 
+        const res = await fetch(fetchUrl, { signal: AbortSignal.timeout(6000) });
         if (res.ok) {
-          const data = await res.json();
-          const reviewsList = data.reviews || [];
-          if (reviewsList.length > 0) {
-            console.log(`[Trustpilot] ✅ RocketAPI returned ${reviewsList.length} reviews`);
-            return {
-              platform: "trustpilot",
-              productName: data.name || businessDomain,
-              productUrl: url,
-              totalReviews: data.count || reviewsList.length,
-              averageRating: data.rating || 0,
-              reviews: reviewsList.map((r: any, i: number) => ({
-                id: r.id || `tp-rk-${i}`,
-                rating: r.rating || 5,
-                title: r.title || "",
-                body: r.text || "",
-                date: r.created_at || new Date().toISOString(),
-                author: r.user?.name || "User",
-              })),
-            };
-          }
+          const html = await res.text();
+          const result = parseTrustpilotHTML(html, businessDomain, url);
+          if (result.reviews.length > 0) return result;
         }
       } catch (err: any) {
-        console.error("[Trustpilot] RocketAPI error:", err.message);
+        console.error("[Trustpilot] ScrapingBee error:", err.message);
       }
     }
 
     return null;
   };
+
 
 
 
