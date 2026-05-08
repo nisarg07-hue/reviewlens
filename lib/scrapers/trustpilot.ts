@@ -96,30 +96,32 @@ export async function scrapeTrustpilot(
       }
     }
 
-    // Method 2: RapidAPI General Web Scraper (fallback for Vercel IP block)
+    // Method 2: RapidAPI ScraperAPI residential proxy (fallback for Vercel IP block)
     if (RAPIDAPI_KEY) {
       try {
-        console.log("[Trustpilot] Method 2: Trying General Web Scraper Proxy...");
-        const scraperUrl = `https://web-scraper.p.rapidapi.com/scrape?url=${encodeURIComponent(url)}&proxy_type=residential`;
+        console.log("[Trustpilot] Method 2: Trying ScraperAPI Residential Proxy...");
+        const scraperUrl = `https://scraperapi.p.rapidapi.com/get?url=${encodeURIComponent(url)}&residential=true`;
         
         const res = await fetch(scraperUrl, {
           headers: {
             "x-rapidapi-key": RAPIDAPI_KEY,
-            "x-rapidapi-host": "web-scraper.p.rapidapi.com",
+            "x-rapidapi-host": "scraperapi.p.rapidapi.com",
           },
-          signal: AbortSignal.timeout(30000),
+          signal: AbortSignal.timeout(45000),
         });
 
         if (res.ok) {
           const html = await res.text();
           const result = parseTrustpilotHTML(html, businessDomain, url);
           if (result.reviews.length > 0) {
-            console.log(`[Trustpilot] ✅ Proxy Scraper found ${result.reviews.length} reviews`);
+            console.log(`[Trustpilot] ✅ ScraperAPI found ${result.reviews.length} reviews`);
             return result;
           }
+        } else {
+          console.log(`[Trustpilot] ScraperAPI status: ${res.status}`);
         }
       } catch (err: any) {
-        console.error("[Trustpilot] Proxy Scraper error:", err.message);
+        console.error("[Trustpilot] ScraperAPI error:", err.message);
       }
     }
 
@@ -152,14 +154,52 @@ export async function scrapeTrustpilot(
 // ─── HTML parser ──────────────────────────────────────────────────────────────
 
 function parseTrustpilotHTML(html: string, businessDomain: string, url: string): ScrapeResult {
-  // Use dynamic import for cheerio
   const cheerio = require("cheerio");
-  const $ = cheerio.load(html, { xmlns: { svg: 'http://www.w3.org/2000/svg' } });
+  const $ = cheerio.load(html);
 
+  // ── Method 1: __NEXT_DATA__ JSON extraction (Most reliable) ────────────────
+  const nextData = $('script[id="__NEXT_DATA__"]').html();
+  if (nextData) {
+    try {
+      const json = JSON.parse(nextData);
+      // Trustpilot's __NEXT_DATA__ structure:
+      // props.pageProps.reviews is an array
+      // props.pageProps.businessUnit has metadata
+      const props = json.props?.pageProps;
+      const businessUnit = props?.businessUnit;
+      const reviewsData = props?.reviews || [];
+
+      if (reviewsData.length > 0) {
+        console.log(`[Trustpilot] ✅ Extracted ${reviewsData.length} reviews from __NEXT_DATA__`);
+        const reviews: RawReview[] = reviewsData.map((r: any, i: number) => ({
+          id: r.id || `tp-nd-${i}`,
+          rating: r.rating || 5,
+          title: r.title || "",
+          body: r.text || "",
+          date: r.createdAt || new Date().toISOString(),
+          author: r.consumer?.displayName || "User",
+        })).filter((r: RawReview) => r.body.length > 0);
+
+        if (reviews.length > 0) {
+          return {
+            platform: "trustpilot",
+            productName: businessUnit?.displayName || businessDomain,
+            productUrl: url,
+            totalReviews: businessUnit?.numberOfReviews || reviews.length,
+            averageRating: businessUnit?.rating || 0,
+            reviews,
+          };
+        }
+      }
+    } catch (e) {
+      console.log("[Trustpilot] Failed to parse __NEXT_DATA__ JSON");
+    }
+  }
+
+  // ── Method 2: Traditional HTML selectors (Fallback) ───────────────────────
   const reviews: RawReview[] = [];
   let idx = 0;
 
-  // Primary selector
   $('[data-automation-id="review-card"]').each((_: number, el: any) => {
     const rating = parseInt($(el).attr("data-service-review-rating") ?? "3", 10);
     const title = $(el).find("[data-service-review-title-typography]").text().trim();
@@ -171,18 +211,6 @@ function parseTrustpilotHTML(html: string, businessDomain: string, url: string):
       reviews.push({ id: `tp-${idx++}`, rating, title, body, date, author });
     }
   });
-
-  // Fallback selector (newer Trustpilot layout)
-  if (reviews.length === 0) {
-    $("[data-review-content]").each((_: number, el: any) => {
-      const ratingElement = $(el).closest("[data-service-review-rating]");
-      const rating = parseInt(ratingElement.attr("data-service-review-rating") || "3", 10);
-      const body = $(el).text().trim();
-      if (body) {
-        reviews.push({ id: `tp-${idx++}`, rating, title: "", body, date: new Date().toISOString(), author: "User" });
-      }
-    });
-  }
 
   // Parse metadata
   let averageRating = 0;
