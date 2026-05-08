@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+export const maxDuration = 60;
 import { detectPlatform, scrapeReviews } from "@/lib/scrapers";
 import { analyzeReviews } from "@/lib/claude";
 import { saveReport } from "@/lib/supabase";
@@ -39,6 +40,11 @@ export async function POST(req: NextRequest): Promise<NextResponse<AnalyzeRespon
   }
 
   try {
+    console.log("ENV DEBUG:", {
+      RAPIDAPI_KEY: process.env.RAPIDAPI_KEY,
+      SCRAPINGBEE_KEY: process.env.SCRAPINGBEE_KEY,
+      GOOGLE_API_KEY: process.env.GOOGLE_API_KEY
+    });
     console.log(`[analyze] received URL: ${body.url}`);
     console.log(`[analyze] env check: GOOGLE_API_KEY=${!!process.env.GOOGLE_API_KEY}, RAPIDAPI_KEY=${!!process.env.RAPIDAPI_KEY}, SCRAPINGBEE_KEY=${!!process.env.SCRAPINGBEE_KEY}`);
     
