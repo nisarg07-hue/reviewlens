@@ -38,23 +38,21 @@ export async function scrapeTrustpilot(
         if (!res.ok) {
           const errText = await res.clone().text();
           console.error("[Trustpilot] ScrapingBee error:", res.status, errText.substring(0, 300));
-          return { ...defaultResult, error: `ScrapingBee error: ${res.status}` };
+          // Don't return error yet, try direct fetch
+        } else {
+          const html = await res.text();
+          console.log(`[Trustpilot] HTML length: ${html.length}`);
+
+          const result = parseTrustpilotHTML(html, businessDomain, url);
+          if (result.reviews.length > 0) {
+            console.log(`[Trustpilot] ✅ ScrapingBee found ${result.reviews.length} reviews`);
+            return result;
+          }
+          console.log("[Trustpilot] ScrapingBee returned HTML but no reviews parsed");
         }
-
-        const html = await res.text();
-        console.log(`[Trustpilot] HTML length: ${html.length}`);
-
-        const result = parseTrustpilotHTML(html, businessDomain, url);
-        if (result.reviews.length > 0) {
-          console.log(`[Trustpilot] ✅ ScrapingBee found ${result.reviews.length} reviews`);
-          return result;
-        }
-
-        console.log("[Trustpilot] ScrapingBee returned HTML but no reviews parsed");
       } catch (err: any) {
         console.error("[Trustpilot] ScrapingBee error:", err.message);
       }
-      return null;
     }
 
     // Method 2: Direct fetch with browser-like headers
@@ -73,6 +71,7 @@ export async function scrapeTrustpilot(
         },
         signal: AbortSignal.timeout(15000),
       });
+
       console.log(`[Trustpilot] Direct fetch status: ${res.status}`);
 
       // Handle rate limiting with retry
@@ -102,139 +101,80 @@ export async function scrapeTrustpilot(
     }
 
     return null;
+  };
 
-    // Retry loop with exponential backoff
-    for (let i = 0; i <= retries; i++) {
-      const result = await attemptScrape(i);
+  // Retry loop with exponential backoff
+  for (let i = 0; i <= retries; i++) {
+    const result = await attemptScrape(i);
 
-      if (result && result.reviews?.length > 0) {
-        return result;
-      }
-
-      if (i < retries) {
-        const backoff = delayMs * Math.pow(2, i) + Math.random() * 1000;
-        console.log(`[Trustpilot] Waiting ${Math.round(backoff)}ms before retry...`);
-        await new Promise(r => setTimeout(r, backoff));
-      }
+    if (result && result.reviews?.length > 0) {
+      return result;
     }
 
-    console.error("[Trustpilot] ❌ All methods failed after retries");
-    return {
-      ...defaultResult,
-      error: "Could not fetch Trustpilot reviews. The site may be rate-limiting requests. Try again later.",
-    };
+    if (i < retries) {
+      const backoff = delayMs * Math.pow(2, i) + Math.random() * 1000;
+      console.log(`[Trustpilot] Waiting ${Math.round(backoff)}ms before retry...`);
+      await new Promise(r => setTimeout(r, backoff));
+    }
   }
 
-  // ─── HTML parser ──────────────────────────────────────────────────────────────
+  console.error("[Trustpilot] ❌ All methods failed after retries");
+  return {
+    ...defaultResult,
+    error: "Could not fetch Trustpilot reviews. The site may be rate-limiting requests. Try again later.",
+  };
+}
 
-  function parseTrustpilotHTML(html: string, businessDomain: string, url: string): ScrapeResult {
-    // Use dynamic import for cheerio
-    const cheerio = require("cheerio");
-    const $ = cheerio.load(html, { xmlns: { svg: 'http://www.w3.org/2000/svg' } });
+// ─── HTML parser ──────────────────────────────────────────────────────────────
 
-    const reviews: RawReview[] = [];
-    let idx = 0;
+function parseTrustpilotHTML(html: string, businessDomain: string, url: string): ScrapeResult {
+  // Use dynamic import for cheerio
+  const cheerio = require("cheerio");
+  const $ = cheerio.load(html, { xmlns: { svg: 'http://www.w3.org/2000/svg' } });
 
-    // Primary selector
-    $('[data-automation-id="review-card"]').each((_: number, el: any) => {
-      const rating = parseInt($(el).attr("data-service-review-rating") ?? "3", 10);
-      const title = $(el).find("[data-service-review-title-typography]").text().trim();
-      const body = $(el).find("[data-service-review-text-typography]").text().trim();
-      const date = $(el).find("time").attr("datetime") ?? new Date().toISOString();
-      const author = $(el).find("[data-consumer-name-typography]").text().trim();
+  const reviews: RawReview[] = [];
+  let idx = 0;
 
+  // Primary selector
+  $('[data-automation-id="review-card"]').each((_: number, el: any) => {
+    const rating = parseInt($(el).attr("data-service-review-rating") ?? "3", 10);
+    const title = $(el).find("[data-service-review-title-typography]").text().trim();
+    const body = $(el).find("[data-service-review-text-typography]").text().trim();
+    const date = $(el).find("time").attr("datetime") ?? new Date().toISOString();
+    const author = $(el).find("[data-consumer-name-typography]").text().trim();
+
+    if (body) {
+      reviews.push({ id: `tp-${idx++}`, rating, title, body, date, author });
+    }
+  });
+
+  // Fallback selector (newer Trustpilot layout)
+  if (reviews.length === 0) {
+    $("[data-review-content]").each((_: number, el: any) => {
+      const ratingElement = $(el).closest("[data-service-review-rating]");
+      const rating = parseInt(ratingElement.attr("data-service-review-rating") || "3", 10);
+      const body = $(el).text().trim();
       if (body) {
-        reviews.push({ id: `tp-${idx++}`, rating, title, body, date, author });
+        reviews.push({ id: `tp-${idx++}`, rating, title: "", body, date: new Date().toISOString(), author: "User" });
       }
     });
-
-    // Fallback selector (newer Trustpilot layout)
-    if (reviews.length === 0) {
-      $("[data-review-content]").each((_: number, el: any) => {
-        const rating = parseInt($(el).closest("[data-service-review-rating]").attr("data-service-review-rating") || "3", 10);
-        const body = $(el).text().trim();
-        if (body) {
-          reviews.push({ id: `tp-${idx++}`, rating, title: "", body, date: new Date().toISOString(), author: "User" });
-        }
-      });
-    }
-
-    // Parse metadata
-    let averageRating = 0;
-    let totalReviews = 0;
-    let productName = businessDomain;
-
-    $('script[type="application/ld+json"]').each((_: number, el: any) => {
-      try {
-        const json = JSON.parse($(el).html() ?? "{}");
-        if (json.aggregateRating) {
-          averageRating = parseFloat(json.aggregateRating.ratingValue ?? "0");
-          totalReviews = parseInt(json.aggregateRating.reviewCount ?? "0", 10);
-        }
-        if (json.name) productName = json.name;
-      } catch {}
-    });
-
-    return {
-      platform: "trustpilot",
-      productName,
-      productUrl: url,
-      totalReviews: totalReviews || reviews.length,
-      averageRating,
-      reviews,
-    };
   }
 
-  // ─── JSON-LD parser ───────────────────────────────────────────────────────────
+  // Parse metadata
+  let averageRating = 0;
+  let totalReviews = 0;
+  let productName = businessDomain;
 
-  function parseTrustpilotJsonLd(html: string, businessDomain: string, url: string): ScrapeResult | null {
+  $('script[type="application/ld+json"]').each((_: number, el: any) => {
     try {
-      const jsonLdMatches = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g);
-      if (!jsonLdMatches) return null;
-
-      let reviews: RawReview[] = [];
-      let productName = businessDomain;
-      let averageRating = 0;
-      let totalReviews = 0;
-
-      for (const match of jsonLdMatches) {
-        const jsonStr = match.replace(/<script type="application\/ld\+json">/, "").replace(/<\/script>/, "");
-        try {
-          const json = JSON.parse(jsonStr);
-
-          if (json["@type"] === "Organization" || json["@type"] === "LocalBusiness") {
-            productName = json.name || businessDomain;
-            averageRating = parseFloat(json.aggregateRating?.ratingValue || "0");
-            totalReviews = parseInt(json.aggregateRating?.reviewCount || "0", 10);
-          }
-
-          if (json.review && Array.isArray(json.review)) {
-            reviews = json.review.map((r: any, i: number) => ({
-              id: `tp-ld-${i}`,
-              rating: parseInt(r.reviewRating?.ratingValue || "3", 10),
-              title: r.headline || r.name || "",
-              body: r.reviewBody || "",
-              date: r.datePublished || new Date().toISOString(),
-              author: r.author?.name || "Anonymous",
-            })).filter((r: RawReview) => r.body.length > 0);
-          }
-        } catch {}
+      const json = JSON.parse($(el).html() ?? "{}");
+      if (json.aggregateRating) {
+        averageRating = parseFloat(json.aggregateRating.ratingValue ?? "0");
+        totalReviews = parseInt(json.aggregateRating.reviewCount ?? "0", 10);
       }
-
-      if (reviews.length === 0) return null;
-
-      return {
-        platform: "trustpilot",
-        productName,
-        productUrl: url,
-        totalReviews: totalReviews || reviews.length,
-        averageRating,
-        reviews,
-      };
-    } catch {
-      return null;
-    }
-  }
+      if (json.name) productName = json.name;
+    } catch {}
+  });
 
   return {
     platform: "trustpilot",
@@ -244,13 +184,55 @@ export async function scrapeTrustpilot(
     averageRating,
     reviews,
   };
-}}
+}
 
-</system-reminder>
-The task tools haven't been used recently. If you're working on tasks that would benefit from tracking progress, consider using TaskCreate to add new tasks and TaskUpdate to update task status (set to in_progress when starting, completed when done). Also consider cleaning up the task list if it has become stale. Only use these if relevant to the current work. This is just a gentle reminder - ignore if not applicable. Make sure that you NEVER mention this reminder to the user
+// ─── JSON-LD parser ───────────────────────────────────────────────────────────
 
+function parseTrustpilotJsonLd(html: string, businessDomain: string, url: string): ScrapeResult | null {
+  try {
+    const jsonLdMatches = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g);
+    if (!jsonLdMatches) return null;
 
-Here are the existing tasks:
+    let reviews: RawReview[] = [];
+    let productName = businessDomain;
+    let averageRating = 0;
+    let totalReviews = 0;
 
-#1. [pending] Review failed TestSprite test cases
-</system-reminder>// Build Fix: Fri, May  8, 2026 10:25:04 PM
+    for (const match of jsonLdMatches) {
+      const jsonStr = match.replace(/<script type="application\/ld\+json">/, "").replace(/<\/script>/, "");
+      try {
+        const json = JSON.parse(jsonStr);
+
+        if (json["@type"] === "Organization" || json["@type"] === "LocalBusiness") {
+          productName = json.name || businessDomain;
+          averageRating = parseFloat(json.aggregateRating?.ratingValue || "0");
+          totalReviews = parseInt(json.aggregateRating?.reviewCount || "0", 10);
+        }
+
+        if (json.review && Array.isArray(json.review)) {
+          reviews = json.review.map((r: any, i: number) => ({
+            id: `tp-ld-${i}`,
+            rating: parseInt(r.reviewRating?.ratingValue || "3", 10),
+            title: r.headline || r.name || "",
+            body: r.reviewBody || "",
+            date: r.datePublished || new Date().toISOString(),
+            author: r.author?.name || "Anonymous",
+          })).filter((r: RawReview) => r.body.length > 0);
+        }
+      } catch {}
+    }
+
+    if (reviews.length === 0) return null;
+
+    return {
+      platform: "trustpilot",
+      productName,
+      productUrl: url,
+      totalReviews: totalReviews || reviews.length,
+      averageRating,
+      reviews,
+    };
+  } catch {
+    return null;
+  }
+}
