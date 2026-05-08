@@ -19,6 +19,13 @@ export async function scrapeTrustpilot(
   };
 
   console.log(`[Trustpilot] Starting scrape for: ${businessDomain}`);
+  console.log(`[Trustpilot] RAPIDAPI_KEY defined: ${!!RAPIDAPI_KEY}`);
+  console.log(`[Trustpilot] SCRAPINGBEE_KEY defined: ${!!process.env.SCRAPINGBEE_KEY}`);
+
+  if (!RAPIDAPI_KEY && !process.env.SCRAPINGBEE_KEY) {
+    console.error("[Trustpilot] ❌ Error: No scraping keys (RAPIDAPI_KEY or SCRAPINGBEE_KEY) found in environment variables.");
+    return { ...defaultResult, error: "Scraping service not configured." };
+  }
 
   const attemptScrape = async (attempt: number): Promise<ScrapeResult | null> => {
     console.log(`[Trustpilot] Attempt ${attempt}/${retries + 1}...`);
@@ -26,7 +33,7 @@ export async function scrapeTrustpilot(
     // Method 0: RapidAPI (Trustpilot Reviews Scraper)
     if (RAPIDAPI_KEY) {
       try {
-        console.log("[Trustpilot] Method 0: Trying RapidAPI...");
+        console.log("[Trustpilot] Method 0: Trying RapidAPI (Dedicated Scraper)...");
         const apiUrl = `https://${RAPIDAPI_HOST}/reviews?domain=${businessDomain}&page=1`;
         
         const res = await fetch(apiUrl, {
@@ -39,7 +46,6 @@ export async function scrapeTrustpilot(
 
         if (res.ok) {
           const data = await res.json();
-          // The API structure for this RapidAPI often returns { reviews: [...], total_reviews: 123, rating: 4.5 }
           const reviewsList = data.reviews || [];
           if (reviewsList.length > 0) {
             const reviews: RawReview[] = reviewsList.map((r: any, i: number) => ({
@@ -61,72 +67,97 @@ export async function scrapeTrustpilot(
               reviews,
             };
           }
-        } else {
-          console.log(`[Trustpilot] RapidAPI status: ${res.status}`);
         }
       } catch (err: any) {
         console.error("[Trustpilot] RapidAPI error:", err.message);
       }
     }
 
-    // Method 1: ScrapingBee (use if available)
+    // Method 1: ScrapingBee
     if (process.env.SCRAPINGBEE_KEY) {
       try {
         console.log("[Trustpilot] Method 1: Trying ScrapingBee...");
         const fetchUrl = `https://app.scrapingbee.com/api/v1/?api_key=${process.env.SCRAPINGBEE_KEY}&url=${encodeURIComponent(url)}&render_js=true&premium_proxy=true&block_ads=false&block_resources=false&wait=5000`;
 
         const res = await fetch(fetchUrl, { signal: AbortSignal.timeout(60000) });
-        console.log(`[Trustpilot] ScrapingBee status: ${res.status}`);
-
-        if (res.status === 429 || res.status === 503) {
-          console.log(`[Trustpilot] Rate limited (${res.status}), backing off...`);
-          return null; 
-        }
-
         if (res.ok) {
           const html = await res.text();
           const result = parseTrustpilotHTML(html, businessDomain, url);
-          if (result.reviews.length > 0) {
-            console.log(`[Trustpilot] ✅ ScrapingBee found ${result.reviews.length} reviews`);
-            return result;
-          }
+          if (result.reviews.length > 0) return result;
         }
       } catch (err: any) {
         console.error("[Trustpilot] ScrapingBee error:", err.message);
       }
     }
 
-    // Method 2: RapidAPI ScraperAPI residential proxy (fallback for Vercel IP block)
+    // Method 2: RapidAPI ScraperAPI (Residential + Render)
     if (RAPIDAPI_KEY) {
       try {
-        console.log("[Trustpilot] Method 2: Trying ScraperAPI Residential Proxy...");
-        const scraperUrl = `https://scraperapi.p.rapidapi.com/get?url=${encodeURIComponent(url)}&residential=true`;
+        console.log("[Trustpilot] Method 2: Trying ScraperAPI (Residential + Render)...");
+        const scraperUrl = `https://scraperapi.p.rapidapi.com/get?url=${encodeURIComponent(url)}&residential=true&render=true`;
         
         const res = await fetch(scraperUrl, {
           headers: {
             "x-rapidapi-key": RAPIDAPI_KEY,
             "x-rapidapi-host": "scraperapi.p.rapidapi.com",
           },
-          signal: AbortSignal.timeout(45000),
+          signal: AbortSignal.timeout(50000),
         });
 
         if (res.ok) {
           const html = await res.text();
           const result = parseTrustpilotHTML(html, businessDomain, url);
-          if (result.reviews.length > 0) {
-            console.log(`[Trustpilot] ✅ ScraperAPI found ${result.reviews.length} reviews`);
-            return result;
-          }
-        } else {
-          console.log(`[Trustpilot] ScraperAPI status: ${res.status}`);
+          if (result.reviews.length > 0) return result;
         }
       } catch (err: any) {
         console.error("[Trustpilot] ScraperAPI error:", err.message);
       }
     }
 
+    // Method 3: RapidAPI RocketAPI (Trustpilot-specific fallback)
+    if (RAPIDAPI_KEY) {
+      try {
+        console.log("[Trustpilot] Method 3: Trying RocketAPI (Trustpilot Fallback)...");
+        const rocketUrl = `https://rocketapi-trustpilot.p.rapidapi.com/v1/reviews?domain=${businessDomain}`;
+        
+        const res = await fetch(rocketUrl, {
+          headers: {
+            "x-rapidapi-key": RAPIDAPI_KEY,
+            "x-rapidapi-host": "rocketapi-trustpilot.p.rapidapi.com",
+          },
+          signal: AbortSignal.timeout(30000),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const reviewsList = data.reviews || [];
+          if (reviewsList.length > 0) {
+            console.log(`[Trustpilot] ✅ RocketAPI returned ${reviewsList.length} reviews`);
+            return {
+              platform: "trustpilot",
+              productName: data.name || businessDomain,
+              productUrl: url,
+              totalReviews: data.count || reviewsList.length,
+              averageRating: data.rating || 0,
+              reviews: reviewsList.map((r: any, i: number) => ({
+                id: r.id || `tp-rk-${i}`,
+                rating: r.rating || 5,
+                title: r.title || "",
+                body: r.text || "",
+                date: r.created_at || new Date().toISOString(),
+                author: r.user?.name || "User",
+              })),
+            };
+          }
+        }
+      } catch (err: any) {
+        console.error("[Trustpilot] RocketAPI error:", err.message);
+      }
+    }
+
     return null;
   };
+
 
 
   // Retry loop with exponential backoff
