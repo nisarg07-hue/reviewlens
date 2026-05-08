@@ -136,7 +136,7 @@ export async function scrapeTrustpilot(
     let idx = 0;
 
     // Primary selector
-    $("[data-automation-id="review-card"]").each((_: number, el: any) => {
+    $('[data-automation-id="review-card"]').each((_: number, el: any) => {
       const rating = parseInt($(el).attr("data-service-review-rating") ?? "3", 10);
       const title = $(el).find("[data-service-review-title-typography]").text().trim();
       const body = $(el).find("[data-service-review-text-typography]").text().trim();
